@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>経営ダッシュボード 2025年度</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;background:#f1f5f9;color:#0f172a;font-size:14px}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+input,textarea,button,select{font-family:inherit}
+.row:hover{background:#f0f9ff!important;cursor:pointer}
+.mtab:hover{opacity:.8}
+.kpi-inp{width:100%;padding:7px 10px;border-radius:7px;border:1.5px solid #e2e8f0;font-size:13px;color:#0f172a;background:#fff}
+.kpi-inp:focus{outline:none;border-color:#0891b2;box-shadow:0 0 0 3px #0891b222}
+</style>
+</head>
+<body>
+<div id="app"><div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:12px"><div style="font-size:32px">📊</div><div style="font-size:16px;font-weight:700;color:#334155">読み込み中...</div></div></div>
+<script>
+var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
+var IQS=[
+  {key:'campaign',q:'今月実施したキャンペーン・施策は？',hint:'例：新春キャンペーン'},
+  {key:'next_plan',q:'来月のキャンペーン・方針は？',hint:'例：3ヶ月応援プランを継続'},
+  {key:'biz',q:'新規事業などの進捗は？',hint:'例：琉球銀行と融資交渉中'},
+  {key:'issues',q:'現在の課題・リスクは？',hint:'例：転勤シーズンで退会増加リスク'},
+  {key:'finance2',q:'来月の大型支出・資金調達は？',hint:'例：コインランドリー購入予定'},
+  {key:'ceo',q:'経営者コメント（スタッフへのメッセージ）',hint:'今月の振り返りと来月への意気込みを'},
+  {key:'free_note',q:'備考・追加指示（AIへの自由記述）',hint:'例：特に財務の厳しさを強調してほしい／退会対策に重点を置いて／全体的に前向きなトーンで'},
+];
+var KPI_FIELDS=[
+  ['aqxia_sales','AQXIA 売上','man','売上'],
+  ['air_sales','AIR 売上','man','売上'],
+  ['total_sales','合計売上','man','売上'],
+  ['aqxia_arpu','AQXIA ARPU（円/月）','yen','売上'],
+  ['air_arpu','AIR ARPU（円/月）','yen','売上'],
+  ['total_transactions','売上件数','num','売上'],
+  ['cashless_ratio','キャッシュレス率','pct','売上'],
+  ['personal_sales','パーソナル売上','man','売上'],
+  ['personal_sessions','パーソナル件数','num','売上'],
+  ['members_start','月初会員数','mei','会員'],
+  ['members_end','月末会員数','mei','会員'],
+  ['new_members','入会者数','mei','会員'],
+  ['left_members','退会者数','mei','会員'],
+  ['churn_rate','退会率','pct','会員'],
+  ['age_50s_pct','50代比率','pct','会員'],
+  ['age_60s_pct','60代比率','pct','会員'],
+  ['female_pct','女性比率','pct','会員'],
+  ['peak_hour','ピーク時間帯','str','稼働'],
+  ['low_hour','課題時間帯','str','稼働'],
+  ['low_slots','低稼働枠数','num','稼働'],
+  ['cash_balance','現金残高','man','財務'],
+  ['highlights','ハイライト','str','所感'],
+  ['lowlights','ローライト','str','所感'],
+];
+var CAT_COLOR={'売上':'#0891b2','会員':'#2563eb','稼働':'#d97706','財務':'#059669','所感':'#7c3aed'};
+var C={
+  teal:'#0891b2',tealL:'#e0f2fe',blue:'#2563eb',blueL:'#eff6ff',
+  green:'#059669',greenL:'#ecfdf5',red:'#dc2626',redL:'#fef2f2',
+  amber:'#d97706',amberL:'#fffbeb',purple:'#7c3aed',purpleL:'#faf5ff',
+  orange:'#ea580c',indigo:'#4f46e5',
+  border:'#e2e8f0',surf:'#f8fafc',white:'#ffffff',
+  text:'#0f172a',textM:'#334155',textS:'#64748b',textX:'#94a3b8',
+};
+var S={
+  csv:'',csvName:'CSVをアップロードしてください',raw:{},
+  kpiData:{},reports:{},finNotes:{},kpiEditMode:null,
+  kpiMsg:'',kpiLoading:false,
+  selMonth:'5月',view:'trend',sec:'finance',repMode:'view',
+  draft:'',iStep:0,iAns:{},formAnswers:{},iInput:'',genLoading:false,genResult:'',
+  showSettings:false,
+  gasUrl:'https://script.google.com/macros/s/AKfycbwubL_JEwjoUW_pQqlZQj6gHlTZGgetGvgOkAzeqyJH9HtMC1aHXFTYZBJhSpU6nTls/exec',adminKey:'Takabashira2024',
+  gasConnected:true,gasStatus:'',gasTesting:false,dbLoading:false,
+};
+
+
+function fmtM(v){if(v==null||v==='')return'—';var n=Math.round(v/10000);return(v<0?'▲':'')+Math.abs(n).toLocaleString()+'万';}
+function fmtY(v){if(v==null||v==='')return'—';return(v<0?'▲':'')+Math.abs(Math.round(v)).toLocaleString()+'円';}
+function fmtN(v,u){return(v==null||v==='')?(u?'—':'—'):Number(v).toLocaleString()+(u||'');}
+function fmtKpi(v,unit){
+  if(v==null||v==='')return'—';
+  if(unit==='man')return fmtM(v);
+  if(unit==='yen')return fmtY(v);
+  if(unit==='pct')return v+'%';
+  if(unit==='mei')return Number(v).toLocaleString()+'名';
+  if(unit==='num')return Number(v).toLocaleString()+'件';
+  return String(v);
+}
+function colV(v){return v>0?C.green:v<0?C.red:C.textX;}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function csvSplit(line){
+  var r=[],cur='',inQ=false;
+  for(var i=0;i<line.length;i++){var c=line[i];if(c==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else{inQ=!inQ;}}else if(c===','&&!inQ){r.push(cur.trim());cur='';}else{cur+=c;}}
+  r.push(cur.trim());return r;
+}
+function parseCSV(text){
+  if(!text||!text.trim())return{};
+  var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
+  var hdrLine=null;
+  for(var i=0;i<lines.length;i++){if(lines[i].indexOf('5月')>=0){hdrLine=lines[i];break;}}
+  if(!hdrLine)return{};
+  var hdr=csvSplit(hdrLine),midx={};
+  for(var i=0;i<hdr.length;i++){if(FM.indexOf(hdr[i])>=0)midx[hdr[i]]=i;}
+  if(!Object.keys(midx).length)return{};
+  var data={};
+  lines.forEach(function(line){
+    var cs=csvSplit(line);
+    var label=(cs[0]===''&&cs.length>1&&cs[1])?cs[1]:cs[0];
+    if(!label)return;
+    var vals={};
+    FM.forEach(function(m){var i=midx[m];if(i==null||i>=cs.length){vals[m]=0;return;}var raw=cs[i].replace(/,/g,'');vals[m]=(raw!==''&&!isNaN(parseInt(raw)))?parseInt(raw):0;});
+    if(Object.values(vals).some(function(v){return v!==0;})&&!data[label])data[label]=vals;
+  });
+  return data;
+}
+function getMonthData(m){
+  function g(k){return(S.raw[k]&&S.raw[k][m])||0;}
+  return{month:m,rev:g('売上高'),op:g('営業利益'),net:g('当期純利益'),sg:g('販売費及び一般管理費合計'),eco:g('経常利益')};
+}
+
+function dots(){return'<span style="display:inline-flex;gap:3px"><span style="width:5px;height:5px;border-radius:50%;background:'+C.teal+';animation:blink 1.2s 0s infinite"></span><span style="width:5px;height:5px;border-radius:50%;background:'+C.teal+';animation:blink 1.2s .2s infinite"></span><span style="width:5px;height:5px;border-radius:50%;background:'+C.teal+';animation:blink 1.2s .4s infinite"></span></span>';}
+function badge(t,c){return'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:'+c+'22;color:'+c+';border:1px solid '+c+'44">'+esc(t)+'</span>';}
+function card(inner,xs){return'<div style="background:'+C.white+';border-radius:14px;border:1px solid '+C.border+';box-shadow:0 1px 4px rgba(0,0,0,.06);padding:18px 20px;'+(xs||'')+'">'+inner+'</div>';}
+function cardNP(inner,xs){return'<div style="background:'+C.white+';border-radius:14px;border:1px solid '+C.border+';box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden;'+(xs||'')+'">'+inner+'</div>';}
+function slabel(ic,t){return'<div style="display:flex;align-items:center;gap:7px;margin-bottom:12px"><span style="font-size:14px">'+ic+'</span><span style="font-size:13px;font-weight:700;color:'+C.textM+'">'+esc(t)+'</span></div>';}
+function btnP(id,t,xs){return'<button id="'+id+'" style="padding:8px 18px;border-radius:9px;border:none;background:linear-gradient(135deg,'+C.teal+','+C.blue+');color:white;font-weight:700;font-size:12px;cursor:pointer;'+(xs||'')+'">'+t+'</button>';}
+function btnS(id,t,xs){return'<button id="'+id+'" style="padding:8px 14px;border-radius:9px;border:1px solid '+C.border+';background:'+C.white+';color:'+C.textM+';font-size:12px;cursor:pointer;'+(xs||'')+'">'+t+'</button>';}
+function kTile(label,value,accent,sub){
+  var a=accent||C.teal;
+  var neg=typeof value==='string'&&value.charAt(0)==='▲';
+  var vc=(value==='—')?C.textX:neg?C.red:a;
+  return'<div style="background:'+C.white+';border-radius:12px;border:1px solid '+C.border+';padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.04)">'
+    +'<div style="font-size:9px;font-weight:700;color:'+C.textX+';letter-spacing:.08em;margin-bottom:5px">'+esc(label)+'</div>'
+    +'<div style="font-size:19px;font-weight:900;color:'+vc+';line-height:1.1">'+esc(value)+'</div>'
+    +(sub?'<div style="font-size:10px;color:'+C.textX+';margin-top:3px">'+esc(sub)+'</div>':'')
+    +'</div>';
+}
+function renderMd(text){
+  if(!text)return'';
+
+  // インラインスタイル: **太字** と `コード`
+  function inlineStyle(s){
+    return s
+      .replace(/\*\*([^*]+)\*\*/g,'<strong style="font-weight:800;color:'+C.text+'">$1</strong>')
+      .replace(/`([^`]+)`/g,'<code style="background:'+C.surf+';border:1px solid '+C.border+';border-radius:4px;padding:1px 5px;font-size:12px">$1</code>');
+  }
+
+  var lines=text.split('\n');
+  var out=[];
+  var i=0;
+
+  while(i<lines.length){
+    var line=lines[i];
+
+    // ─ H1: # → セクション見出し（番号バッジ付き）
+    if(line.startsWith('# ')){
+      var title=line.slice(2).trim();
+      // 先頭の①②...や数字を抽出
+      var numM=title.match(/^([①②③④⑤⑥⑦⑧⑨⑩\d]+[\.\s]?)\s*/);
+      var badge2='',rest=title;
+      if(numM){badge2='<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,'+C.teal+','+C.blue+');color:white;font-size:11px;font-weight:800;flex-shrink:0;margin-right:9px">'+esc(numM[1].trim())+'</span>';rest=title.slice(numM[0].length);}
+      out.push('<div style="display:flex;align-items:center;border-bottom:2px solid '+C.tealL+';padding-bottom:10px;margin:28px 0 14px">'+badge2+'<span style="font-size:15px;font-weight:800;color:'+C.text+'">'+inlineStyle(esc(rest))+'</span></div>');
+      i++;continue;
+    }
+
+    // ─ H2: ## → サブ見出し
+    if(line.startsWith('## ')){
+      out.push('<div style="font-size:13px;font-weight:800;color:'+C.teal+';margin:18px 0 8px;padding-left:10px;border-left:3px solid '+C.teal+'">'+inlineStyle(esc(line.slice(3).trim()))+'</div>');
+      i++;continue;
+    }
+
+    // ─ H3: ### → 小見出し
+    if(line.startsWith('### ')){
+      out.push('<div style="font-size:12px;font-weight:700;color:'+C.textM+';margin:14px 0 6px;text-decoration:underline;text-underline-offset:3px">'+inlineStyle(esc(line.slice(4).trim()))+'</div>');
+      i++;continue;
+    }
+
+    // ─ 箇条書きブロック（連続する - をまとめてulに）
+    if(line.startsWith('- ')||line.startsWith('・')){
+      var items=[];
+      while(i<lines.length&&(lines[i].startsWith('- ')||lines[i].startsWith('・'))){
+        var itemText=lines[i].startsWith('- ')?lines[i].slice(2):lines[i].slice(1);
+        items.push('<li style="margin:5px 0;line-height:1.75;font-size:13px;color:'+C.textM+'">'+inlineStyle(esc(itemText.trim()))+'</li>');
+        i++;
+      }
+      out.push('<ul style="margin:6px 0 10px 0;padding-left:20px;list-style:none">'+items.map(function(li){return li.replace('<li ','<li style="position:relative" ').replace('<li style="position:relative" ','<li style="position:relative;margin:5px 0;line-height:1.75;font-size:13px;color:'+C.textM+'" ');}).join('')+'</ul>');
+      // シンプルにそのままulで出す
+      out[out.length-1]='<ul style="margin:6px 0 10px 0;padding:0;list-style:none">'+items.map(function(li){
+        return li.replace('style="margin:5px 0;line-height:1.75;font-size:13px;color:'+C.textM+'"',
+          'style="display:flex;align-items:flex-start;gap:8px;margin:5px 0;line-height:1.75;font-size:13px;color:'+C.textM+'"')
+          .replace('<li ','<li ').replace(/>([^<])/,'><span style="color:'+C.teal+';font-weight:900;margin-top:1px;flex-shrink:0">▸</span><span>$1')+'</span></li>'.replace(/<\/li>$/,'');
+      }).join('')+'</ul>';
+      continue;
+    }
+
+    // ─ 数字付きリスト: 1. 2.
+    if(/^\d+\.\s/.test(line)){
+      var numItems=[];
+      var n=1;
+      while(i<lines.length&&/^\d+\.\s/.test(lines[i])){
+        var ntext=lines[i].replace(/^\d+\.\s*/,'');
+        numItems.push('<li style="display:flex;align-items:flex-start;gap:10px;margin:7px 0;font-size:13px;line-height:1.75;color:'+C.textM+'">'
+          +'<span style="display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:50%;background:'+C.teal+';color:white;font-size:10px;font-weight:800;flex-shrink:0;margin-top:2px">'+n+'</span>'
+          +'<span>'+inlineStyle(esc(ntext.trim()))+'</span></li>');
+        n++;i++;
+      }
+      out.push('<ol style="margin:6px 0 10px 0;padding:0;list-style:none">'+numItems.join('')+'</ol>');
+      continue;
+    }
+
+    // ─ 区切り線
+    if(line.trim()==='---'||line.trim()==='***'||line.trim()==='==='){
+      out.push('<hr style="border:none;border-top:1px solid '+C.border+';margin:20px 0"/>');
+      i++;continue;
+    }
+
+    // ─ ハイライトブロック > で始まる行
+    if(line.startsWith('> ')){
+      var qlines=[];
+      while(i<lines.length&&lines[i].startsWith('> ')){qlines.push(lines[i].slice(2));i++;}
+      out.push('<div style="margin:10px 0;padding:12px 16px;background:'+C.tealL+';border-left:4px solid '+C.teal+';border-radius:0 10px 10px 0">'
+        +'<div style="font-size:13px;line-height:1.8;color:'+C.textM+'">'+qlines.map(function(l){return inlineStyle(esc(l));}).join('<br>')+'</div></div>');
+      continue;
+    }
+
+    // ─ 空行
+    if(!line.trim()){out.push('<div style="height:6px"></div>');i++;continue;}
+
+    // ─ 通常テキスト
+    out.push('<p style="margin:5px 0;line-height:1.85;font-size:13px;color:'+C.textM+'">'+inlineStyle(esc(line))+'</p>');
+    i++;
+  }
+  return out.join('');
+}
+
+function buildHeader(){
+  var gasBar=S.gasConnected
+    ?'<div style="display:flex;align-items:center;gap:6px">'+(S.dbLoading?dots():'<div style="width:7px;height:7px;border-radius:50%;background:'+C.green+'"></div>')+'<span style="font-size:10px;color:'+C.textS+'">'+esc(S.gasStatus||'Sheets接続済')+'</span><button id="btn-sync" style="font-size:12px;background:none;border:none;cursor:pointer;color:'+C.teal+'">🔄</button></div>'
+    :'<div style="display:flex;align-items:center;gap:4px;font-size:11px;color:'+C.textX+'"><div style="width:6px;height:6px;border-radius:50%;background:'+C.amber+'"></div>ローカル保存のみ</div>';
+  var settingsHtml='';
+  if(S.showSettings){
+    settingsHtml='<div style="background:'+C.surf+';border-bottom:1px solid '+C.border+';padding:14px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+      +'<div style="display:flex;align-items:center;gap:7px">'
+      +'<div style="width:8px;height:8px;border-radius:50%;background:'+(S.gasConnected?C.green:C.amber)+'"></div>'
+      +'<span style="font-size:13px;font-weight:700;color:'+(S.gasConnected?C.green:C.textM)+'">'+(S.gasConnected?'Google Sheets 接続済み':'未接続')+'</span>'
+      +'</div>'
+      +(S.gasConnected?btnP('btn-sync2','🔄 今すぐ同期','font-size:11px;padding:6px 14px'):'')
+      +(S.dbLoading?'<span style="font-size:11px;color:'+C.textX+'">同期中...</span>':'')
+      +'</div>';
+  }
+  var tabs=FM.map(function(m){
+    var d=getMonthData(m),iC=(S.view===m);
+    var hD=d.rev>0||d.sg>0,hR=!!(S.reports[m]&&S.reports[m].text),hK=!!S.kpiData[m];
+    return'<button class="mtab" data-month="'+m+'" style="padding:0 12px;border:none;cursor:pointer;font-size:12px;font-weight:'+(iC?700:hD?500:400)+';border-bottom:2.5px solid '+(iC?C.teal:'transparent')+';background:transparent;color:'+(iC?C.teal:hD?C.textS:C.textX)+';white-space:nowrap;flex-shrink:0;height:44px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px">'
+      +'<div style="display:flex;align-items:center;gap:2px">'+m+(hR?'<div style="width:4px;height:4px;border-radius:50%;background:'+C.green+'"></div>':'')+(hK?'<div style="width:4px;height:4px;border-radius:50%;background:'+C.indigo+'"></div>':'')+'</div>'
+      +'<div style="font-size:8px;color:'+(hD?(d.net>=0?C.green:C.red):C.textX)+'">'+(hD?fmtM(d.net):'未確定')+'</div>'
+      +'</button>';
+  }).join('');
+  return'<header style="background:'+C.white+';border-bottom:1px solid '+C.border+';position:sticky;top:0;z-index:50;box-shadow:0 1px 3px rgba(0,0,0,.05)">'
+    +'<div style="display:flex;align-items:center;padding:0 18px;height:52px;border-bottom:1px solid '+C.border+';gap:10px">'
+    +'<div style="display:flex;align-items:center;gap:8px;padding-right:14px;border-right:1px solid '+C.border+';flex-shrink:0">'
+    +'<div style="width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,'+C.teal+','+C.blue+');display:flex;align-items:center;justify-content:center;font-size:14px">📊</div>'
+    +'<div><div style="font-size:13px;font-weight:800;color:'+C.text+'">経営ダッシュボード</div><div style="font-size:9px;color:'+C.textX+'">2025年度</div></div></div>'
+    +'<div id="csv-drop" style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;border:1.5px dashed '+C.border+';cursor:pointer;flex-shrink:0">'
+    +'<input id="csv-input" type="file" accept=".csv" style="display:none"><span style="font-size:13px">📂</span>'
+    +'<div><div style="font-size:10px;font-weight:700;color:'+C.teal+'">損益CSV</div><div style="font-size:9px;color:'+C.textX+';max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(S.csvName)+'</div></div></div>'
+    +'<div id="kpi-drop" style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;border:1.5px dashed '+C.border+';cursor:pointer;flex-shrink:0">'
+    +'<input id="kpi-input" type="file" accept=".docx,.doc" style="display:none"><span style="font-size:13px">📋</span>'
+    +'<div><div style="font-size:10px;font-weight:700;color:'+C.indigo+'">KPIレポート</div><div style="font-size:9px;color:'+C.textX+'">.docx</div></div></div>'
+    +(S.kpiLoading?'<div style="display:flex;align-items:center;gap:6px">'+dots()+'<span style="font-size:11px;color:'+C.teal+'">'+esc(S.kpiMsg)+'</span></div>':S.kpiMsg?'<div style="font-size:11px;color:'+(S.kpiMsg.startsWith('⚠️')?C.red:C.green)+'">'+esc(S.kpiMsg)+'</div>':'')
+    +'<div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0">'+gasBar
+    +'<button id="btn-settings" style="padding:5px 10px;border-radius:7px;border:1px solid '+C.border+';font-size:11px;font-weight:700;cursor:pointer;background:'+(S.showSettings?C.tealL:C.white)+';color:'+(S.showSettings?C.teal:C.textS)+'">⚙️ DB設定</button>'
+    +'</div></div>'
+    +settingsHtml
+    +'<div style="display:flex;align-items:stretch;overflow-x:auto;padding-left:6px;background:'+C.white+'">'
+    +'<button class="mtab" data-view="trend" style="padding:0 14px;border:none;cursor:pointer;font-size:12px;font-weight:'+(S.view==='trend'?700:500)+';border-bottom:2.5px solid '+(S.view==='trend'?C.teal:'transparent')+';background:transparent;color:'+(S.view==='trend'?C.teal:C.textS)+';white-space:nowrap;flex-shrink:0;height:44px">2025年度 全体</button>'
+    +tabs+'</div></header>';
+}
+
+function buildTrend(){
+  var allD=FM.map(getMonthData);
+  var active=allD.filter(function(d){return d.rev>0||d.sg>0;});
+  if(!active.length){
+    return card('<div style="text-align:center;padding:48px 20px"><div style="font-size:48px;margin-bottom:16px">📂</div><div style="font-size:16px;font-weight:700;color:'+C.textM+';margin-bottom:8px">損益データがありません</div><div style="font-size:13px;color:'+C.textS+';margin-bottom:24px">ヘッダーの「損益CSV」からアップロードしてください</div>'+btnP('btn-open-csv','📂 CSVをアップロード','padding:11px 26px;font-size:14px')+'</div>');
+  }
+  var totalRev=active.reduce(function(s,d){return s+d.rev;},0);
+  var totalNet=active.reduce(function(s,d){return s+d.net;},0);
+  var totalSg=active.reduce(function(s,d){return s+d.sg;},0);
+  var last=active[active.length-1];
+  var avgSg=active.length?Math.round(totalSg/active.length):0;
+  var balMonths=FM.filter(function(m){return S.finNotes[m]&&S.finNotes[m].balance!=null;});
+  var lastBalM=balMonths.length?balMonths[balMonths.length-1]:null;
+  var lastBal=lastBalM!=null?S.finNotes[lastBalM].balance:null;
+  var remainM=(lastBal!=null&&avgSg)?Math.floor(lastBal/avgSg):null;
+  var memMs=active.filter(function(d){return S.kpiData[d.month]&&S.kpiData[d.month].members_end;});
+  var lastKpi=memMs.length?S.kpiData[memMs[memMs.length-1].month]:{};
+  var allExp=[];
+  FM.forEach(function(m){var n=S.finNotes[m]||{};(n.expenses||[]).filter(function(e){return e.label;}).forEach(function(e){allExp.push(Object.assign({month:m},e));});});
+
+  // ── メイングラフ（売上・販管費・純利益）─────────────────────
+  var maxRev=Math.max.apply(null,active.map(function(d){return Math.max(d.rev,d.sg);}));if(maxRev<=0)maxRev=1;
+  var GH=140; // グラフ高さpx
+  var bars=active.map(function(d){
+    var note=S.finNotes[d.month]||{};
+    var hasExp=(note.expenses||[]).some(function(e){return e.label;});
+    var rh=Math.max(4,Math.round(d.rev/maxRev*GH));
+    var sh=Math.max(4,Math.round(d.sg/maxRev*GH));
+    var netPos=d.net>=0;
+    var netColor=netPos?C.green:C.red;
+    var mo=d.month.replace(/^\d{4}年/,'').replace('月','');
+    return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:36px;cursor:default">'
+      // 売上・販管費の数値ラベル（最新月のみ）
+      +(d===last?'<div style="font-size:9px;color:'+C.teal+';font-weight:700;margin-bottom:2px">'+Math.round(d.rev/10000)+'万</div>':'<div style="height:15px"></div>')
+      // 棒グラフ本体
+      +'<div style="width:100%;height:'+GH+'px;display:flex;align-items:flex-end;justify-content:center;gap:2px;position:relative">'
+      +'<div style="width:42%;height:'+rh+'px;background:'+C.teal+';border-radius:4px 4px 0 0;position:relative">'
+        +(rh>28?'<div style="position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:8px;color:white;font-weight:700">'+Math.round(d.rev/10000)+'</div>':'')
+      +'</div>'
+      +'<div style="width:42%;height:'+sh+'px;background:'+C.amber+';border-radius:4px 4px 0 0;position:relative">'
+        +(sh>28?'<div style="position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:8px;color:white;font-weight:700">'+Math.round(d.sg/10000)+'</div>':'')
+      +'</div>'
+      +(hasExp?'<div style="position:absolute;top:2px;right:2px;font-size:10px">⚠️</div>':'')
+      +'</div>'
+      // 純利益ライン（±表示）
+      +'<div style="width:100%;display:flex;justify-content:center;align-items:center;padding:3px 0;border-top:2px solid '+C.border+';border-bottom:1px dashed '+C.border+'">'
+        +'<span style="font-size:9px;font-weight:800;color:'+netColor+'">'+(netPos?'▲':'▼')+Math.round(Math.abs(d.net)/10000)+'</span>'
+      +'</div>'
+      // 月ラベル
+      +'<div style="font-size:10px;color:'+C.textS+';margin-top:4px;font-weight:600">'+mo+'月</div>'
+      +'</div>';
+  }).join('');
+
+  var mainChart = slabel('📊','月次グラフ（万円）')
+    +'<div style="display:flex;gap:10px;margin-bottom:10px">'
+      +'<span style="display:flex;align-items:center;gap:4px;font-size:11px;color:'+C.textM+'">'
+        +'<span style="display:inline-block;width:12px;height:12px;background:'+C.teal+';border-radius:2px"></span>売上</span>'
+      +'<span style="display:flex;align-items:center;gap:4px;font-size:11px;color:'+C.textM+'">'
+        +'<span style="display:inline-block;width:12px;height:12px;background:'+C.amber+';border-radius:2px"></span>販管費</span>'
+      +'<span style="display:flex;align-items:center;gap:4px;font-size:11px;color:'+C.textM+'">'
+        +'<span style="font-size:10px;font-weight:800;color:'+C.green+'">▲</span>/<span style="font-size:10px;font-weight:800;color:'+C.red+'">▼</span>純利益</span>'
+    +'</div>'
+    +'<div style="display:flex;align-items:flex-end;gap:3px;padding:4px 0 0">'+bars+'</div>';
+
+  // ── 残高グラフ ──────────────────────────────────────────
+  var balData=FM.map(function(m){return{month:m,bal:S.finNotes[m]&&S.finNotes[m].balance!=null?S.finNotes[m].balance:null};}).filter(function(d){return d.bal!=null;});
+  var balChart='';
+  if(balData.length>=2){
+    var maxBal=Math.max.apply(null,balData.map(function(d){return Math.abs(d.bal);}));if(maxBal<=0)maxBal=1;
+    var bBars=balData.map(function(d){
+      var h=Math.max(4,Math.round(Math.abs(d.bal)/maxBal*100));
+      var bc=d.bal>=0?C.blue:C.red;
+      var mo=d.month.replace(/^\d{4}年/,'').replace('月','');
+      return '<div style="flex:1;min-width:28px;display:flex;flex-direction:column;align-items:center">'
+        +'<div style="font-size:9px;color:'+bc+';font-weight:700;margin-bottom:3px">'+Math.round(d.bal/10000)+'万</div>'
+        +'<div style="width:70%;height:'+h+'px;background:'+bc+';border-radius:4px 4px 0 0"></div>'
+        +'<div style="font-size:10px;color:'+C.textS+';margin-top:4px;font-weight:600">'+mo+'月</div>'
+        +'</div>';
+    }).join('');
+    balChart=slabel('💰','残高推移（万円）')+'<div style="display:flex;align-items:flex-end;gap:3px;padding:4px 0 0;min-height:130px">'+bBars+'</div>';
+  }else{
+    balChart=slabel('💰','残高推移')+'<div style="text-align:center;padding:20px 10px"><div style="font-size:28px;margin-bottom:8px">📝</div><div style="font-size:12px;color:'+C.textS+';line-height:1.7">各月の「財務」タブで<br>月末残高を入力すると<br>グラフが表示されます</div></div>';
+  }
+
+  // ── 大型支出 ────────────────────────────────────────────
+  var expHtml='';
+  if(allExp.length){
+    var rows=allExp.map(function(e){
+      var tg=e.type==='plan'?C.purple:C.orange;
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:9px;background:'+(e.type==='plan'?C.purpleL:C.amberL)+';border:1px solid '+(e.type==='plan'?C.purple+'33':C.amber+'44')+'">'
+        +'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;background:'+tg+';color:white;flex-shrink:0">'+(e.type==='plan'?'予定':'実績')+'</span>'
+        +'<span style="font-weight:700;color:'+C.textM+';font-size:12px;flex-shrink:0">'+esc(e.month)+'</span>'
+        +(e.date?'<span style="font-size:11px;color:'+C.textS+'">'+esc(e.date)+'</span>':'')
+        +'<span style="flex:1;font-size:13px;color:'+C.textM+'">'+esc(e.label)+'</span>'
+        +(e.amount?'<span style="font-size:13px;font-weight:700;color:'+tg+'">'+fmtM(e.amount*10000)+'</span>':'')
+        +'</div>';
+    }).join('');
+    expHtml=cardNP(slabel('⚠️','大型支出一覧')+'<div style="display:flex;flex-direction:column;gap:7px">'+rows+'</div>','padding:18px 20px;margin-bottom:14px');
+  }
+
+  // ── 月次サマリーテーブル ────────────────────────────────
+  var tRows=FM.map(function(month){
+    var d=getMonthData(month),hR=!!(S.reports[month]&&S.reports[month].text),hK=!!S.kpiData[month];
+    var note=S.finNotes[month]||{},bal=note.balance!=null?note.balance:null;
+    var hasExp=(note.expenses||[]).some(function(e){return e.label;});
+    var cols=[d.rev,d.sg,d.op,d.eco,d.net].map(function(v,j){
+      var txt=v===0?'<span style="color:'+C.textX+'">—</span>':(v<0?'▲':'')+Math.abs(v).toLocaleString();
+      return '<td style="padding:9px 12px;text-align:right;color:'+(j>=2?colV(v):C.text)+';font-weight:'+(j>=2?700:400)+'">'+txt+'</td>';
+    }).join('');
+    var balTxt=bal!=null?'<span style="font-weight:700;color:'+(bal>=0?C.blue:C.red)+'">'+fmtM(bal)+'</span>':'<span style="font-size:10px;color:'+C.textX+'">未入力</span>';
+    return '<tr class="row" data-month="'+month+'" style="border-bottom:1px solid '+C.border+';background:'+C.white+'">'
+      +'<td style="padding:9px 12px;font-weight:700;color:'+C.teal+'">'+month+(hasExp?' ⚠️':'')+'</td>'+cols
+      +'<td style="padding:9px 12px;text-align:right">'+balTxt+'</td>'
+      +'<td style="padding:9px 12px;text-align:right">'+(hK?badge('あり',C.indigo):'<span style="font-size:10px;color:'+C.textX+'">—</span>')+'</td>'
+      +'<td style="padding:9px 12px;text-align:right">'+(hR?badge('保存済',C.green):'<span style="font-size:10px;color:'+C.textX+'">未作成</span>')+'</td></tr>';
+  }).join('');
+
+  var remColor=remainM!=null?(remainM>=6?C.green:remainM>=3?C.amber:C.red):C.textX;
+  return '<div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px">'
+    +kTile('年度累計売上',fmtM(totalRev),C.teal,(active[0]?active[0].month:'')+'〜'+(last?last.month:''))
+    +kTile('年度累計純損益',fmtM(totalNet),totalNet>=0?C.green:C.red)
+    +kTile('直近月 会員数',lastKpi.members_end?lastKpi.members_end+'名':'—',C.indigo,memMs.length?memMs[memMs.length-1].month+'時点':'KPIから取得')
+    +kTile('月平均販管費',fmtM(avgSg),C.amber,active.length+'ヶ月平均')
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">'
+    +kTile('直近残高',lastBal!=null?fmtM(lastBal):'—',lastBal!=null?(lastBal>=0?C.blue:C.red):C.textX,lastBalM?lastBalM+'末時点':'各月に手入力')
+    +kTile('残存月数',remainM!=null?(remainM+'ヶ月'):'—',remColor,remainM!=null?'残高÷月平均販管費':'残高入力後に計算')
+    +kTile('大型支出 計画中',allExp.filter(function(e){return e.type==='plan';}).length+'件',C.purple)
+    +kTile('大型支出 実績',allExp.filter(function(e){return e.type==='actual';}).length+'件',C.orange)
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:3fr 2fr;gap:14px;margin-bottom:14px">'
+    +card(mainChart)
+    +card(balChart)+'</div>'
+    +expHtml
+    +cardNP(slabel('📋','月次損益サマリー（クリックで詳細へ）')
+      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:700px">'
+      +'<thead><tr style="background:'+C.surf+';border-bottom:1px solid '+C.border+'">'
+      +['月','売上','販管費','営業利益','経常利益','純利益','残高','KPI','報告書'].map(function(h){
+        return '<th style="padding:8px 12px;text-align:'+(h==='月'?'left':'right')+';color:'+C.textS+';font-weight:600;font-size:11px">'+h+'</th>';
+      }).join('')+'</tr></thead><tbody>'+tRows+'</tbody></table></div>','padding:18px 20px')
+    +'</div>';
+}
+
+
+function buildKpiTab(){
+  var kpi=S.kpiData[S.selMonth]||{};
+  var hasData=!!S.kpiData[S.selMonth];
+  var editMode=(S.kpiEditMode===S.selMonth);
+  var cats=['売上','会員','稼働','財務','所感'];
+
+  if(editMode){
+    var sections=cats.map(function(cat){
+      var flds=KPI_FIELDS.filter(function(f){return f[3]===cat;});
+      var cc=CAT_COLOR[cat];
+      var rows=flds.map(function(f){
+        var key=f[0],label=f[1],unit=f[2];
+        var val=kpi[key];
+        var curStr=(val!=null&&val!=='')?String(val):'';
+        var placeholder=unit==='man'?'例: 653179（円単位）':unit==='yen'?'例: 9332（円単位）':unit==='pct'?'例: 83（数字のみ）':unit==='mei'?'例: 174（人数）':unit==='num'?'例: 134（件数）':'テキストを入力';
+        var hint=unit==='man'?'円単位で入力（表示は万円に変換）':unit==='yen'?'円単位で入力':unit==='pct'?'%の数字のみ（例: 83）':unit==='mei'?'人数のみ':unit==='num'?'件数のみ':'';
+        if(unit==='str'){
+          return'<div style="padding:10px 14px;border-radius:9px;background:'+C.surf+';border:1px solid '+C.border+'">'
+            +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">'
+            +'<div style="font-size:12px;font-weight:700;color:'+cc+'">'+esc(label)+'</div>'
+            +(val!=null&&val!==''?'<div style="font-size:10px;color:'+C.textX+'">（保存済み）</div>':'<div style="font-size:10px;color:'+C.textX+'">未設定</div>')
+            +'</div>'
+            +'<textarea class="kpi-inp kpi-field" data-key="'+key+'" rows="4" style="resize:vertical;width:100%">'+esc(curStr)+'</textarea>'
+            +'</div>';
+        }
+        var inputEl='<input class="kpi-inp kpi-field" data-key="'+key+'" type="number" value="'+esc(curStr)+'" placeholder="'+esc(placeholder)+'" step="any"/>';
+        return'<div style="display:grid;grid-template-columns:1fr 1.4fr auto;align-items:start;gap:10px;padding:9px 12px;border-radius:9px;background:'+C.surf+';border:1px solid '+C.border+'">'
+          +'<div><div style="font-size:12px;font-weight:700;color:'+cc+'">'+esc(label)+'</div><div style="font-size:10px;color:'+C.textX+';margin-top:2px">'+esc(hint)+'</div></div>'
+          +inputEl
+          +'<div style="font-size:11px;color:'+C.textX+';white-space:nowrap;padding-top:8px">'+(val!=null&&val!==''?'現在: '+esc(fmtKpi(val,unit)):'未設定')+'</div>'
+          +'</div>';
+      }).join('');
+      return'<div style="margin-bottom:18px">'
+        +'<div style="font-size:11px;font-weight:700;color:'+cc+';padding:4px 12px;background:'+cc+'18;border-radius:20px;display:inline-block;margin-bottom:10px">'+cat+'</div>'
+        +'<div style="display:flex;flex-direction:column;gap:6px">'+rows+'</div>'
+        +'</div>';
+    }).join('');
+    return card(
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">'
+      +'<div><div style="font-size:15px;font-weight:800;color:'+C.text+'">✏️ KPI編集 — '+S.selMonth+'</div>'
+      +'<div style="font-size:11px;color:'+C.textX+';margin-top:3px">空欄で保存すると「—」になります。数字項目は数字のみ入力してください。</div></div>'
+      +'<div style="display:flex;gap:8px">'+btnS('btn-kpi-cancel','キャンセル','font-size:12px')+btnP('btn-kpi-save','💾 保存','font-size:12px')+'</div>'
+      +'</div>'+sections
+    );
+  }
+
+  if(!hasData){
+    return card('<div style="text-align:center;padding:40px 20px">'
+      +'<div style="font-size:38px;margin-bottom:12px">📋</div>'
+      +'<div style="font-size:15px;font-weight:700;color:'+C.textM+';margin-bottom:8px">'+S.selMonth+'のKPIデータがありません</div>'
+      +'<div style="font-size:13px;color:'+C.textS+';margin-bottom:20px">レポートをアップロードするか、手動で直接入力できます</div>'
+      +'<div style="display:flex;gap:10px;justify-content:center">'
+      +btnP('btn-open-kpi','📋 .docxをアップロード','background:linear-gradient(135deg,'+C.indigo+','+C.purple+')')
+      +btnS('btn-kpi-edit','✏️ 手動で入力する')
+      +'</div></div>');
+  }
+
+  var sections=cats.map(function(cat){
+    var cc=CAT_COLOR[cat];
+    var numFlds=KPI_FIELDS.filter(function(f){return f[3]===cat&&f[2]!=='str';});
+    var strFlds=KPI_FIELDS.filter(function(f){return f[3]===cat&&f[2]==='str';});
+    var tiles=numFlds.map(function(f){return kTile(f[1],fmtKpi(kpi[f[0]],f[2]),cc);}).join('');
+    var strHtml=strFlds.map(function(f){
+      var v=kpi[f[0]];if(!v)return'';
+      return'<div style="margin-top:12px">'+slabel(f[3]==='稼働'?'🕐':'✨',f[1])
+        +'<div style="font-size:13px;color:'+C.textM+';line-height:1.7;padding:10px 14px;background:'+C.surf+';border-radius:9px;border:1px solid '+C.border+';white-space:pre-wrap">'+esc(v)+'</div></div>';
+    }).join('');
+    return'<div style="margin-bottom:18px">'
+      +'<div style="font-size:11px;font-weight:700;color:'+cc+';padding:4px 12px;background:'+cc+'18;border-radius:20px;display:inline-block;margin-bottom:10px">'+cat+'</div>'
+      +(tiles?'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'+tiles+'</div>':'')
+      +strHtml+'</div>';
+  }).join('');
+
+  return'<div>'
+    +'<div style="display:flex;justify-content:flex-end;margin-bottom:14px">'
+    +btnS('btn-kpi-edit','✏️ 編集・修正する','font-size:12px')
+    +'</div>'+sections+'</div>';
+}
+
+function buildMonth(){
+  var md=getMonthData(S.selMonth);
+  var ai=FM.indexOf(S.selMonth);
+  var rep=S.reports[S.selMonth]||{};
+  var note=S.finNotes[S.selMonth]||{balance:null,expenses:[]};
+  var bal=note.balance;
+  var exps=note.expenses&&note.expenses.length?note.expenses:[{label:'',amount:'',date:'',type:'plan'}];
+
+  var finHtml='';
+  if(md.rev===0&&md.sg===0){
+    finHtml=card('<div style="text-align:center;padding:30px"><div style="font-size:28px;margin-bottom:8px">📂</div><div style="font-size:14px;font-weight:700;color:'+C.textM+';margin-bottom:6px">'+S.selMonth+'の財務データがありません</div><div style="font-size:12px;color:'+C.textS+'">損益CSVをアップロードするとデータが表示されます</div></div>');
+  }else{
+    var detailRows=[
+      ['売上高',S.raw['売上高']&&S.raw['売上高'][S.selMonth]||0,true,C.teal],
+      ['売上原価合計',S.raw['売上原価合計']&&S.raw['売上原価合計'][S.selMonth]||0,false,C.textS],
+      ['売上総利益',S.raw['売上総利益']&&S.raw['売上総利益'][S.selMonth]||0,true,C.teal],null,
+      ['役員報酬',S.raw['役員報酬']&&S.raw['役員報酬'][S.selMonth]||0,false,C.textS],
+      ['給料賃金',S.raw['給料賃金']&&S.raw['給料賃金'][S.selMonth]||0,false,C.textS],
+      ['法定福利費',S.raw['法定福利費']&&S.raw['法定福利費'][S.selMonth]||0,false,C.textS],
+      ['業務委託料',S.raw['業務委託料']&&S.raw['業務委託料'][S.selMonth]||0,false,C.textS],
+      ['地代家賃',S.raw['地代家賃']&&S.raw['地代家賃'][S.selMonth]||0,false,C.textS],
+      ['水道光熱費',S.raw['水道光熱費']&&S.raw['水道光熱費'][S.selMonth]||0,false,C.textS],
+      ['備品・消耗品費',S.raw['備品・消耗品費']&&S.raw['備品・消耗品費'][S.selMonth]||0,false,C.textS],
+      ['広告宣伝費',S.raw['広告宣伝費']&&S.raw['広告宣伝費'][S.selMonth]||0,false,C.textS],
+      ['通信費',S.raw['通信費']&&S.raw['通信費'][S.selMonth]||0,false,C.textS],null,
+      ['販管費合計',md.sg,true,C.amber],['営業利益',md.op,true,md.op>=0?C.green:C.red],
+      ['経常利益',md.eco,true,md.eco>=0?C.green:C.red],['純利益',md.net,true,md.net>=0?C.green:C.red],
+    ];
+    var dRows=detailRows.map(function(row){
+      if(!row)return'<div style="height:1px;background:'+C.border+';margin:2px 0;grid-column:1/-1"></div>';
+      return'<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 10px;border-radius:7px;background:'+(row[2]?row[3]+'12':'transparent')+'">'
+        +'<span style="font-size:12.5px;color:'+(row[2]?C.textM:C.textS)+';font-weight:'+(row[2]?600:400)+'">'+esc(row[0])+'</span>'
+        +'<span style="font-size:12.5px;font-weight:'+(row[2]?700:500)+';color:'+(row[1]<0?C.red:row[3])+'">'+(row[1]===0?'—':(row[1]<0?'▲':'')+Math.abs(row[1]).toLocaleString()+'円')+'</span></div>';
+    }).join('');
+    finHtml='<div>'
+      +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px">'
+      +kTile('売上',fmtM(md.rev),C.teal)+kTile('販管費',fmtM(md.sg),C.amber)
+      +kTile('営業利益',fmtM(md.op),md.op>=0?C.green:C.red)
+      +kTile('経常利益',fmtM(md.eco),md.eco>=0?C.green:C.red)
+      +kTile('純利益',fmtM(md.net),md.net>=0?C.green:C.red)
+      +'</div>'
+      +card(slabel('📋','損益計算書 明細')+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px">'+dRows+'</div>')
+      +'</div>';
+  }
+
+  var savedExps=(note.expenses||[]).filter(function(e){return e.label;});
+  var expList=savedExps.length===0
+    ?'<div style="text-align:center;padding:14px;font-size:12px;color:'+C.textX+'">大型支出の記録はありません</div>'
+    :savedExps.map(function(e){
+      var tg=e.type==='plan'?C.purple:C.orange;
+      return'<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;background:'+(e.type==='plan'?C.purpleL:C.amberL)+';border:1px solid '+(e.type==='plan'?C.purple+'33':C.amber+'44')+'">'
+        +'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:'+tg+';color:white;flex-shrink:0">'+(e.type==='plan'?'予定':'実績')+'</span>'
+        +(e.date?'<span style="font-size:11px;color:'+C.textS+'">'+esc(e.date)+'</span>':'')
+        +'<span style="flex:1;font-size:13px;font-weight:600;color:'+C.textM+'">'+esc(e.label)+'</span>'
+        +(e.amount?'<span style="font-size:14px;font-weight:800;color:'+tg+'">'+fmtM(e.amount*10000)+'</span>':'')
+        +'</div>';
+    }).join('');
+  var expFormRows=exps.map(function(e,i){
+    return'<div style="display:grid;grid-template-columns:auto 1fr auto auto;gap:6px;align-items:center;padding:8px;background:'+C.surf+';border-radius:8px;border:1px solid '+C.border+'">'
+      +'<select data-ei="'+i+'" class="exp-type" style="padding:5px 7px;border-radius:6px;border:1px solid '+C.border+';font-size:11px;background:'+C.white+'">'
+      +'<option value="plan"'+(e.type==='plan'?' selected':'')+'>📅 予定</option>'
+      +'<option value="actual"'+(e.type==='actual'?' selected':'')+'>✅ 実績</option>'
+      +'</select>'
+      +'<input data-ei="'+i+'" class="exp-label" value="'+esc(e.label||'')+'" placeholder="支出名" style="padding:5px 9px;border-radius:6px;border:1px solid '+C.border+';font-size:12px;min-width:0"/>'
+      +'<input data-ei="'+i+'" class="exp-date" type="date" value="'+esc(e.date||'')+'" style="padding:5px 7px;border-radius:6px;border:1px solid '+C.border+';font-size:11px;width:130px"/>'
+      +'<div style="display:flex;align-items:center;gap:4px">'
+      +'<input data-ei="'+i+'" class="exp-amount" type="number" value="'+(e.amount||'')+'" placeholder="金額" style="width:72px;padding:5px 7px;border-radius:6px;border:1px solid '+C.border+';font-size:12px"/>'
+      +'<span style="font-size:11px;color:'+C.textX+'">万円</span></div></div>';
+  }).join('');
+  var noteHtml=card(
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">'
+    +'<div>'+slabel('💰','月末残高')
+    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+    +'<input id="bal-input" type="number" value="'+(bal!=null?bal:'')+'" placeholder="残高を円単位で入力" style="flex:1;padding:9px 13px;border-radius:9px;border:1.5px solid '+C.border+';font-size:13px"/>'
+    +'<span style="font-size:12px;color:'+C.textS+'">円</span></div>'
+    +(bal!=null?'<div style="padding:10px 14px;background:'+(bal>=0?C.blueL:C.redL)+';border-radius:9px;border:1px solid '+(bal>=0?C.blue+'33':C.red+'33')+';margin-bottom:8px"><div style="font-size:10px;color:'+C.textX+'">入力済み残高</div><div style="font-size:22px;font-weight:900;color:'+(bal>=0?C.blue:C.red)+'">'+fmtM(bal)+'</div></div>':'')
+    +btnP('btn-save-bal','💾 残高を保存','width:100%')
+    +'<div style="margin-top:8px;font-size:10px;color:'+C.textX+';line-height:1.6">月末時点の現金・預金残高合計</div></div>'
+    +'<div>'+slabel('⚠️','大型支出メモ')
+    +'<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">'+expList+'</div>'
+    +'<details style="border:1px solid '+C.border+';border-radius:10px;overflow:hidden">'
+    +'<summary style="padding:8px 12px;font-size:12px;font-weight:700;color:'+C.textM+';cursor:pointer;background:'+C.surf+'">＋ 支出を追加・編集</summary>'
+    +'<div style="padding:12px;display:flex;flex-direction:column;gap:8px">'+expFormRows
+    +'<div style="display:flex;gap:8px;padding-top:4px">'
+    +btnS('btn-add-expense','＋ 行を追加','font-size:11px;padding:5px 12px')
+    +btnP('btn-save-expenses','💾 保存','font-size:11px;padding:5px 16px')
+    +'</div></div></details></div></div>'
+  );
+
+  var repBody='';
+  if(S.repMode==='upload'){
+    repBody='<div style="padding:28px;background:'+C.white+'"><div id="rep-drop" style="border:2px dashed '+C.border+';border-radius:14px;padding:40px 20px;text-align:center;cursor:pointer;background:'+C.surf+'"><input id="rep-file" type="file" accept=".docx,.txt,.md" style="display:none"><div style="font-size:36px;margin-bottom:10px">📄</div><div style="font-size:14px;font-weight:700;color:'+C.textM+'">ファイルをドロップまたはクリック</div></div><div id="upload-msg"></div></div>';
+  }else if(S.repMode==='create'){
+    // フォーム形式 - 全質問を一画面に表示
+    var formRows = IQS.map(function(q,i){
+      var val = S.iAns[q.key]||'';
+      var isStr = true; // 全部テキスト入力
+      var isFreeNote=(q.key==='free_note');
+      var bgColor=isFreeNote?'background:'+C.tealL+';border:1.5px dashed '+C.teal+';border-radius:12px;padding:14px 16px;':''
+      return '<div style="margin-bottom:18px;'+bgColor+'">'
+        +'<label style="display:block;font-size:12px;font-weight:700;color:'+(isFreeNote?C.teal:C.textM)+';margin-bottom:5px">'
+        +(isFreeNote
+          ?'<span style="font-size:14px;margin-right:6px">✍️</span>'
+          :'<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:'+C.teal+';color:white;font-size:10px;font-weight:800;margin-right:6px">'+(i+1)+'</span>'
+        )
+        +esc(q.q)+'</label>'
+        +'<div style="font-size:11px;color:'+C.textX+';margin-bottom:6px;padding-left:24px">💡 '+esc(q.hint)+'</div>'
+        +'<textarea class="rep-form-input kpi-inp" data-key="'+q.key+'" rows='+(isFreeNote?'5':'3')+' style="resize:vertical;width:100%;font-size:13px;line-height:1.6" placeholder="'+esc(q.hint)+'">'+esc(val)+'</textarea>'
+        +'</div>';
+    }).join('');
+
+    repBody='<div style="padding:24px 28px;background:'+C.white+'">'
+      +'<div style="font-size:14px;font-weight:800;color:'+C.text+';margin-bottom:4px">'+S.selMonth+' 経営報告書を作成</div>'
+      +'<div style="font-size:12px;color:'+C.textX+';margin-bottom:20px">各項目を入力してください。空欄のままでも生成できます。</div>'
+      +formRows
+      +(S.genLoading
+        ?'<div style="display:flex;align-items:center;gap:10px;padding:16px;background:'+C.surf+';border-radius:12px;border:1px solid '+C.border+'">'+dots()+'<span style="font-size:13px;color:'+C.textM+'">AI生成中...</span></div>'
+        :S.genResult
+          ?'<div>'
+            +'<div style="margin-bottom:14px;padding:24px 32px;background:'+C.white+';border-radius:12px;border:1px solid '+C.border+'">'+renderMd(S.genResult)+'</div>'
+            +'<div style="display:flex;gap:8px;justify-content:flex-end">'
+            +btnP('btn-save-gen','💾 保存する','font-size:13px')
+            +'</div></div>'
+          :'<div style="display:flex;justify-content:flex-end">'
+            +btnP('btn-submit-form','✨ AIで生成する','font-size:13px;padding:10px 28px')
+            +'</div>'
+      )
+      +'</div>';
+    }else if(S.repMode==='edit'){
+    // 上部：質問と回答を編集可能なフィールドで表示
+    var qFields=IQS.map(function(q){
+      var val=S.iAns[q.key]||'';
+      var isFree=(q.key==='free_note');
+      return '<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid '+C.border+'">'
+        +'<div style="font-size:11px;font-weight:700;color:'+C.teal+';margin-bottom:4px">'+esc(q.q)+'</div>'
+        +'<textarea class="edit-ans-inp" data-key="'+q.key+'" rows="'+(isFree?3:2)+'" style="width:100%;font-size:12px;line-height:1.6;border:1px solid '+C.border+';border-radius:6px;padding:6px 8px;resize:vertical">'+val+'</textarea>'
+        +'</div>';
+    }).join('');
+
+    repBody='<div style="padding:18px 22px;background:'+C.white+'">'
+      // 上部：回答編集エリア（折りたたみ）
+      +'<details style="margin-bottom:16px;border:1px solid '+C.teal+';border-radius:10px;overflow:hidden">'
+        +'<summary style="padding:10px 14px;font-size:12px;font-weight:700;color:'+C.teal+';background:'+C.tealL+';cursor:pointer;user-select:none">📋 入力内容を編集する（開いて編集できます）</summary>'
+        +'<div style="padding:12px 16px">'+qFields+'</div>'
+      +'</details>'
+      // 中部：本文編集エリア
+      +'<div style="font-size:11px;color:'+C.textX+';margin-bottom:8px">💡 マークダウン記法で編集できます。<code># 見出し</code> <code>**太字**</code> <code>- 箇条書き</code> <code>1. 番号リスト</code> <code>&gt; 引用</code></div>'
+      +'<textarea id="draft-area" style="width:100%;min-height:560px;border:1.5px solid '+C.border+';border-radius:10px;padding:14px 16px;font-size:13px;line-height:1.9;resize:vertical;font-family:monospace">'+(S.draft||'')+'</textarea>'
+      // 下部：保存ボタン
+      +'<div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">'+btnS('btn-rep-cancel','キャンセル')+btnP('btn-save-edit','💾 保存する')+'</div>'
+      +'</div>';
+  }else if(rep.text){
+    repBody='<div style="padding:28px 36px;background:'+C.white+';font-family:\'Hiragino Kaku Gothic ProN\',\'Meiryo\',sans-serif">'+renderMd(rep.text)+'</div>';
+  }else{
+    repBody='<div style="padding:48px 20px;text-align:center;background:'+C.white+'"><div style="font-size:40px;margin-bottom:12px">📝</div><div style="font-size:15px;font-weight:700;color:'+C.textM+';margin-bottom:7px">'+S.selMonth+'の経営報告書はまだありません</div>'+btnP('btn-rep-create2','✨ AIで経営報告書を作成する','padding:11px 28px;font-size:14px')+'</div>';
+  }
+  var repHtml=cardNP(
+    '<div style="padding:14px 20px;border-bottom:1px solid '+C.border+';display:flex;justify-content:space-between;align-items:center;background:'+C.surf+'">'
+    +'<div style="display:flex;align-items:center;gap:9px"><span style="font-size:17px">📝</span><div><div style="font-size:13px;font-weight:800;color:'+C.text+'">'+S.selMonth+' 経営報告書</div>'+(rep.savedAt?'<div style="font-size:10px;color:'+C.textX+'">保存: '+esc(rep.savedAt)+'</div>':'')+'</div>'+(rep.text?badge('保存済み',C.green):'')+'</div>'
+    +'<div style="display:flex;gap:7px">'+(S.repMode==='view'?btnS('btn-rep-upload','📁 アップロード','font-size:12px')+(rep.text?btnS('btn-rep-edit','✏️ 内容を修正','font-size:12px')+btnS('btn-rep-delete','🗑️ 削除','font-size:12px;color:'+C.red+';border-color:'+C.red):btnP('btn-rep-create','✨ AIで作成')):btnS('btn-rep-close','✕ 閉じる','font-size:12px'))+'</div></div>'+repBody
+  );
+
+  var secTabs=[['finance','📉 財務'],['kpi','📋 KPI'],['report','📝 経営報告書']].map(function(pair){
+    var id=pair[0],label=pair[1],active=S.sec===id;
+    return'<button data-sec="'+id+'" style="padding:6px 16px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:'+(active?'linear-gradient(135deg,'+C.teal+','+C.blue+')':C.white)+';color:'+(active?C.white:C.textS)+'">'+label+'</button>';
+  }).join('');
+
+  return'<div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">'
+    +'<div style="display:flex;align-items:center;gap:9px"><div style="font-size:21px;font-weight:900;color:'+C.text+'">'+S.selMonth+'</div>'
+    +badge((md.net||0)>=0?'黒字':'赤字',(md.net||0)>=0?C.green:C.red)
+    +(S.kpiData[S.selMonth]?badge('KPI取込済',C.indigo):'')+(rep.text?badge('報告書あり',C.green):'')+'</div>'
+    +'<div style="display:flex;gap:7px">'+(ai>0?btnS('btn-prev','← '+FM[ai-1],'font-size:12px'):'')+(ai<11?btnS('btn-next',FM[ai+1]+' →','font-size:12px'):'')+'</div></div>'
+    +'<div style="display:flex;gap:3px;margin-bottom:16px;background:'+C.white+';border-radius:11px;padding:4px;border:1px solid '+C.border+';width:fit-content">'+secTabs+'</div>'
+    +(S.sec==='finance'?finHtml+noteHtml:'')
+    +(S.sec==='kpi'?buildKpiTab():'')
+    +(S.sec==='report'?repHtml:'')
+    +'</div>';
+}
+
+function render(){
+  var content=S.view==='trend'?buildTrend():buildMonth();
+  document.getElementById('app').innerHTML=buildHeader()+'<main style="max-width:1160px;margin:0 auto;padding:22px 18px">'+content+'</main>';
+  bindEvents();
+}
+function goMonth(m){S.view=m;S.selMonth=m;S.sec='finance';S.repMode='view';render();}
+
+function bindEvents(){
+  document.querySelectorAll('.mtab').forEach(function(b){b.addEventListener('click',function(){var v=b.dataset.view||b.dataset.month;S.view=v;if(v!=='trend')S.selMonth=v;S.sec='finance';S.repMode='view';render();});});
+  document.querySelectorAll('.row[data-month]').forEach(function(r){r.addEventListener('click',function(){goMonth(r.dataset.month);});});
+  document.querySelectorAll('[data-sec]').forEach(function(b){b.addEventListener('click',function(){S.sec=b.dataset.sec;render();});});
+  var cd=document.getElementById('csv-drop'),ci=document.getElementById('csv-input');
+  if(cd){cd.addEventListener('click',function(){ci.click();});cd.addEventListener('dragover',function(e){e.preventDefault();});cd.addEventListener('drop',function(e){e.preventDefault();handleCsv(e.dataTransfer.files[0]);});}
+  if(ci)ci.addEventListener('change',function(e){handleCsv(e.target.files[0]);});
+  var kd=document.getElementById('kpi-drop'),ki=document.getElementById('kpi-input');
+  if(kd){kd.addEventListener('click',function(){ki.click();});kd.addEventListener('dragover',function(e){e.preventDefault();});kd.addEventListener('drop',function(e){e.preventDefault();handleKpi(e.dataTransfer.files[0]);});}
+  if(ki)ki.addEventListener('change',function(e){handleKpi(e.target.files[0]);});
+  var bs=document.getElementById('btn-settings');if(bs)bs.addEventListener('click',function(){S.showSettings=!S.showSettings;render();});
+
+  var boc=document.getElementById('btn-open-csv');if(boc)boc.addEventListener('click',function(){document.getElementById('csv-input').click();});
+  var bok=document.getElementById('btn-open-kpi');if(bok)bok.addEventListener('click',function(){document.getElementById('kpi-input').click();});
+  var ai=FM.indexOf(S.selMonth);
+  var bp=document.getElementById('btn-prev');if(bp)bp.addEventListener('click',function(){goMonth(FM[ai-1]);});
+  var bn=document.getElementById('btn-next');if(bn)bn.addEventListener('click',function(){goMonth(FM[ai+1]);});
+
+  // KPI編集
+  var bke=document.getElementById('btn-kpi-edit');
+  if(bke)bke.addEventListener('click',function(){S.kpiEditMode=S.selMonth;render();});
+  var bkc=document.getElementById('btn-kpi-cancel');
+  if(bkc)bkc.addEventListener('click',function(){S.kpiEditMode=null;render();});
+  var bks=document.getElementById('btn-kpi-save');
+  if(bks)bks.addEventListener('click',function(){
+    var kpi=Object.assign({},S.kpiData[S.selMonth]||{});
+    document.querySelectorAll('.kpi-field').forEach(function(inp){
+      var key=inp.dataset.key;
+      var raw=inp.value.trim();
+      if(raw===''){kpi[key]=null;return;}
+      var field=null;
+      for(var i=0;i<KPI_FIELDS.length;i++){if(KPI_FIELDS[i][0]===key){field=KPI_FIELDS[i];break;}}
+      var unit=field?field[2]:'';
+      kpi[key]=(unit==='str')?raw:parseFloat(raw.replace(/,/g,''))||null;
+    });
+    S.kpiData=Object.assign({},S.kpiData);S.kpiData[S.selMonth]=kpi;
+    
+    gasPost({action:'save_kpi',month:S.selMonth,data:kpi});
+    S.kpiEditMode=null;render();
+  });
+
+  var brc=document.getElementById('btn-rep-create');
+  var brc2=document.getElementById('btn-rep-create2');
+  // 初回作成（データなし）→ iAnsリセット
+  if(brc2)brc2.addEventListener('click',function(){S.repMode='create';S.genResult='';if(S.formAnswers&&S.formAnswers[S.selMonth])S.iAns=S.formAnswers[S.selMonth];render();});
+  // 再作成ボタン（既存データあり）→ iAnsリセット
+  if(brc)brc.addEventListener('click',function(){S.repMode='create';S.genResult='';if(S.formAnswers&&S.formAnswers[S.selMonth])S.iAns=S.formAnswers[S.selMonth];render();});
+  var bru=document.getElementById('btn-rep-upload');if(bru)bru.addEventListener('click',function(){S.repMode='upload';render();});
+  var brd=document.getElementById('btn-rep-delete');
+  if(brd)brd.addEventListener('click',function(){
+    if(!confirm('「'+S.selMonth+'」の報告書を削除しますか？この操作は取り消せません。'))return;
+    S.reports=Object.assign({},S.reports);
+    delete S.reports[S.selMonth];
+    S.repMode='view';
+    gasPost({action:'delete_report',month:S.selMonth});
+    render();
+  });
+  var bre=document.getElementById('btn-rep-edit');if(bre)bre.addEventListener('click',function(){
+    var rep=S.reports[S.selMonth]||{};
+    S.draft=rep.text||'';
+    S.iAns={};
+    // メモリにあればすぐ使う
+    if(S.formAnswers&&S.formAnswers[S.selMonth]){
+      S.iAns=S.formAnswers[S.selMonth];
+      S.repMode='edit';render();
+    }else{
+      // GASから取得試みる（なくても編集画面は開く）
+      S.repMode='edit';render();
+      fetch(S.gasUrl+'?type=ians').then(function(r){return r.json();}).then(function(j){
+        if(j&&j.ok&&j.formAnswers){
+          S.formAnswers=j.formAnswers;
+          if(j.formAnswers[S.selMonth]){S.iAns=j.formAnswers[S.selMonth];render();}
+        }
+      }).catch(function(){});
+    }
+  });
+  var brcl=document.getElementById('btn-rep-close');if(brcl)brcl.addEventListener('click',function(){S.repMode='view';render();});
+  var brca=document.getElementById('btn-rep-cancel');if(brca)brca.addEventListener('click',function(){S.repMode='view';render();});
+  var bse=document.getElementById('btn-save-edit');
+  if(bse)bse.addEventListener('click',function(){var ta=document.getElementById('draft-area');if(!ta)return;document.querySelectorAll('.edit-ans-inp').forEach(function(el){if(el.dataset.key)S.iAns[el.dataset.key]=el.value;});S.formAnswers=Object.assign({},S.formAnswers);S.formAnswers[S.selMonth]=S.iAns;gasPost({action:'save_ians',month:S.selMonth,data:S.iAns});var d={text:ta.value,savedAt:new Date().toLocaleDateString('ja-JP'),iAns:S.iAns};S.reports=Object.assign({},S.reports);S.reports[S.selMonth]=d;gasPost({action:'save_report',month:S.selMonth,data:d});S.repMode='view';render();});
+  var bsg=document.getElementById('btn-save-gen');
+  if(bsg)bsg.addEventListener('click',function(){var d={text:S.genResult,savedAt:new Date().toLocaleDateString('ja-JP'),iAns:S.iAns};S.reports=Object.assign({},S.reports);S.reports[S.selMonth]=d;gasPost({action:'save_report',month:S.selMonth,data:d});S.repMode='view';S.sec='report';render();});
+  // フォームの入力内容をS.iAnsに保存するヘルパー
+  function saveFormState(){
+    document.querySelectorAll('.rep-form-input').forEach(function(el){
+      if(el.dataset.key) S.iAns[el.dataset.key]=el.value;
+    });
+  }
+  var bsf=document.getElementById('btn-submit-form');
+  if(bsf)bsf.addEventListener('click',submitForm);
+
+  var rdrop=document.getElementById('rep-drop'),rfile=document.getElementById('rep-file');
+  if(rdrop){rdrop.addEventListener('click',function(){rfile.click();});rdrop.addEventListener('dragover',function(e){e.preventDefault();});rdrop.addEventListener('drop',function(e){e.preventDefault();handleRepFile(e.dataTransfer.files[0]);});}
+  if(rfile)rfile.addEventListener('change',function(e){handleRepFile(e.target.files[0]);});
+
+  var bbal=document.getElementById('btn-save-bal');
+  if(bbal)bbal.addEventListener('click',function(){var inp=document.getElementById('bal-input');if(!inp)return;var v=inp.value.trim();var note=Object.assign({},S.finNotes[S.selMonth]||{});note.balance=v!==''?parseFloat(v):null;S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;gasPost({action:'save_finance_notes',data:S.finNotes});render();});
+  var badd=document.getElementById('btn-add-expense');
+  if(badd)badd.addEventListener('click',function(){var note=Object.assign({},S.finNotes[S.selMonth]||{});note.expenses=(note.expenses||[]).concat([{label:'',amount:'',date:'',type:'plan'}]);S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;render();});
+  var bexp=document.getElementById('btn-save-expenses');
+  if(bexp)bexp.addEventListener('click',function(){
+    var types=[].slice.call(document.querySelectorAll('.exp-type'));
+    var labels=[].slice.call(document.querySelectorAll('.exp-label'));
+    var amounts=[].slice.call(document.querySelectorAll('.exp-amount'));
+    var dates=[].slice.call(document.querySelectorAll('.exp-date'));
+    var note=Object.assign({},S.finNotes[S.selMonth]||{});
+    note.expenses=labels.map(function(_,i){return{type:types[i]?types[i].value:'plan',label:labels[i]?labels[i].value.trim():'',amount:amounts[i]&&amounts[i].value.trim()?parseFloat(amounts[i].value):null,date:dates[i]?dates[i].value:''};}).filter(function(e){return e.label;});
+    S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;gasPost({action:'save_finance_notes',data:S.finNotes});render();
+  });
+}
+
+async function extractDocxText(ab){
+  if(typeof JSZip==='undefined')throw new Error('JSZipが読み込まれていません');
+  var zip=await JSZip.loadAsync(ab);
+  var xmlFile=zip.file('word/document.xml');
+  if(!xmlFile)throw new Error('word/document.xmlが見つかりません');
+  var xml=await xmlFile.async('text');
+  return xml
+    .replace(/<w:p[ >]/g,'\n<w:p ')
+    .replace(/<w:br[^/]*\/>/g,'\n')
+    .replace(/<[^>]+>/g,'')
+    .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&apos;/g,"'").replace(/&quot;/g,'"')
+    .replace(/[ \t]+/g,' ')
+    .split('\n').map(function(l){return l.trim();}).filter(function(l){return l;}).join('\n')
+    .slice(0,6000);
+}
+
+async function handleCsv(file){
+  if(!file||!file.name.endsWith('.csv'))return;
+  S.csvName=file.name;var ab=await file.arrayBuffer();var text;
+  try{text=new TextDecoder('shift-jis').decode(new Uint8Array(ab));}catch(e){text=new TextDecoder('utf-8').decode(new Uint8Array(ab));}
+  S.csv=text;S.raw=parseCSV(text);
+  if(S.gasConnected){S.gasStatus='CSV同期中...';render();try{await gasPost({action:'save_csv',csvName:S.csvName,rawData:text});S.gasStatus='✅ CSV同期完了';}catch(e){S.gasStatus='⚠️ CSV同期失敗';}setTimeout(function(){if(S.gasStatus.includes('CSV')){S.gasStatus='';render();}},3000);}
+  render();
+}
+
+function parseKpiFromText(text){
+  function num(pp){for(var i=0;i<pp.length;i++){var m=text.match(pp[i]);if(m){var v=parseInt((m[1]||'').replace(/,/g,''));if(!isNaN(v)&&v>0)return v;}}return null;}
+  function flt(pp){for(var i=0;i<pp.length;i++){var m=text.match(pp[i]);if(m){var v=parseFloat(m[1]);if(!isNaN(v))return v;}}return null;}
+  function str(pp){for(var i=0;i<pp.length;i++){var m=text.match(pp[i]);if(m)return(m[1]||'').trim().slice(0,100);}return null;}
+  return{
+    aqxia_sales:num([/アクシア[^\d（【]*(\d[\d,]+)円/,/AQXIA[^\d]*(\d[\d,]+)円/i]),
+    air_sales:num([/AIR[^\d（【]*(\d[\d,]+)円/i]),
+    total_sales:num([/月間総売上[：:\s]*(\d[\d,]+)円/,/総売上[：:\s]*(\d[\d,]+)円/]),
+    aqxia_arpu:num([/アクシア.*?ARPU[^\d]*(\d[\d,]+)/,/アクシア.*?([78],?\d{3})円/]),
+    air_arpu:num([/AIR.*?ARPU[^\d]*(\d[\d,]+)/i,/AIR.*?([89],?\d{3})円/i]),
+    total_transactions:num([/総売上件数[^\d]*(\d+)件/,/合計.*?(\d+)件/]),
+    cashless_ratio:flt([/キャッシュレス[^\d]*(\d+\.?\d*)%/]),
+    members_start:num([/月初会員数[^\d]*(\d+)名/,/月初[^\d]+(\d+)名/]),
+    members_end:num([/月末[^\d]{0,20}(\d+)名/,/最終会員数[^\d]*(\d+)名/]),
+    new_members:num([/入会者[^\d（]*(\d+)名/,/＋(\d+)名/]),
+    left_members:num([/退会者[^\d]*(\d+)名/,/－(\d+)名/]),
+    churn_rate:null,
+    age_50s_pct:flt([/50代[（(](\d+\.?\d*)%/,/50代.*?(\d+\.?\d*)%/]),
+    age_60s_pct:flt([/60代[（(](\d+\.?\d*)%/,/60代.*?(\d+\.?\d*)%/]),
+    female_pct:flt([/女性\s*(\d+\.?\d*)%/]),
+    peak_hour:str([/最大ピーク[^\d]*(\d+)時/,/ピーク[：:\s時帯]*(\d+)時/]),
+    low_hour:str([/課題.*?(\d+)時/,/谷間.*?(\d+)時/]),
+    low_slots:num([/低稼働枠[^\d計]*(\d+)枠/,/計(\d+)枠/]),
+    personal_sales:num([/パーソナル.*合計[^\d]*(\d[\d,]+)円/]),
+    personal_sessions:num([/合計\s*(\d+)セッション/,/(\d+)セッション.*合計/]),
+    cash_balance:null,
+    highlights:str([/【ハイライト[】】]([\s\S]{10,150})(?:【|ローライト|$)/]),
+    lowlights:str([/【ローライト[】】]([\s\S]{10,150})(?:【|収益|要因|$)/]),
+  };
+}
+
+async function handleKpi(file){
+  if(!file)return;
+  S.kpiLoading=true;S.kpiMsg='📄 読み込み中...';render();
+  try{
+    var text='';
+    if(file.name.endsWith('.docx')||file.name.endsWith('.doc')){var ab=await file.arrayBuffer();text=await extractDocxText(ab);}
+    else{text=await file.text();}
+    if(!text||text.length<30)throw new Error('テキストが読み取れませんでした（'+text.length+'文字）');
+    var kpi=null;
+    if(S.gasConnected&&S.gasUrl&&S.adminKey){
+      S.kpiMsg='🤖 AI解析中（GAS経由）...';render();
+      var gr=await fetch(S.gasUrl,{method:'POST',body:JSON.stringify({adminKey:S.adminKey,action:'extract_kpi',text:text.slice(0,5000)})});
+      var gj=await gr.json();
+      if(gj&&gj.ok&&gj.kpi){kpi=gj.kpi;}else{throw new Error(gj&&gj.error?gj.error:'GAS経由の解析に失敗しました');}
+    }else{
+      S.kpiMsg='📊 データ解析中...';render();kpi=parseKpiFromText(text);
+    }
+    S.kpiData=Object.assign({},S.kpiData);S.kpiData[S.selMonth]=kpi;
+    
+    gasPost({action:'save_kpi',month:S.selMonth,data:kpi});
+    S.kpiMsg='✅ '+S.selMonth+'のKPIを取り込みました';S.sec='kpi';
+  }catch(e){S.kpiMsg='⚠️ エラー: '+e.message;console.error('KPI error:',e);}
+  S.kpiLoading=false;render();
+  setTimeout(function(){S.kpiMsg='';render();},8000);
+}
+
+async function handleRepFile(file){
+  if(!file)return;
+  var msgEl=document.getElementById('upload-msg');
+  try{
+    var text='';
+    if(file.name.endsWith('.docx')){var ab=await file.arrayBuffer();text=await extractDocxText(ab);}else{text=await file.text();}
+    if(!text.trim())throw new Error('テキストが読み取れませんでした');
+    var d={text:text,savedAt:new Date().toLocaleDateString('ja-JP'),source:file.name};
+    S.reports=Object.assign({},S.reports);S.reports[S.selMonth]=d;
+    
+    gasPost({action:'save_report',month:S.selMonth,data:d});S.repMode='view';render();
+  }catch(e){if(msgEl)msgEl.innerHTML='<div style="margin-top:10px;padding:10px;background:#fef2f2;border-radius:8px;font-size:12px;color:#dc2626">⚠️ '+esc(e.message)+'</div>';}
+}
+
+async function submitForm(){
+  // フォームから全項目を収集
+  var ans={};
+  document.querySelectorAll('.rep-form-input').forEach(function(el){
+    ans[el.dataset.key]=el.value.trim();
+  });
+  S.iAns=ans;
+  S.formAnswers=Object.assign({},S.formAnswers);S.formAnswers[S.selMonth]=ans;
+  await gasPost({action:'save_ians',month:S.selMonth,data:ans});
+  S.genLoading=true;S.genResult='';render();
+
+  var m=S.selMonth,kpi=S.kpiData[m]||{},a=ans;
+  var nl='\n';
+  var prompt='あなたは経営コンサルタントです。以下のデータをもとに、スタッフ全員が読みやすい月次経営報告書を日本語マークダウンで作成してください。'+nl+nl
+    +'対象月: '+m+nl
+    +'売上高: '+fmtY((S.raw['売上高']&&S.raw['売上高'][m])||0)+nl
+    +'営業利益: '+fmtY((S.raw['営業利益']&&S.raw['営業利益'][m])||0)+nl
+    +'純利益: '+fmtY((S.raw['当期純利益']&&S.raw['当期純利益'][m])||0)+nl
+    +'月初会員: '+fmtN(kpi.members_start,'名')+' 月末会員: '+fmtN(kpi.members_end,'名')+nl
+    +'入会: +'+fmtN(kpi.new_members,'名')+' 退会: -'+fmtN(kpi.left_members,'名')+nl
+    +'ハイライト: '+(kpi.highlights||'なし')+nl
+    +'ローライト: '+(kpi.lowlights||'なし')+nl
+    +'今月の施策: '+(a.campaign||'なし')+nl
+    +'来月の方針: '+(a.next_plan||'未定')+nl
+    +'新規事業進捗: '+(a.biz||'なし')+nl
+    +'課題・リスク: '+(a.issues||'なし')+nl
+    +'来月の大型支出: '+(a.finance2||'なし')+nl
+    +'経営者コメント: '+(a.ceo||'なし')+nl
+    +(a.free_note?'追加指示・備考: '+a.free_note+nl:'')+nl
+    +'【出力ルール】'+nl
+    +'- 各セクションは「# ① タイトル」形式で始める'+nl
+    +'- 重要な数字・キーワードは **太字** にする'+nl
+    +'- 箇条書きは「- 」を使う'+nl
+    +'- アクションプランは「1. 」番号付きリストにする'+nl
+    +'- 経営者コメントセクションは「> 」引用形式で書く'+nl
+    +'- 全体で1200〜1800文字程度'+nl+nl
+    +'【構成】この順で作成:'+nl
+    +'# ① 今月のサマリー'+nl
+    +'# ② 売上・財務状況'+nl
+    +'# ③ 会員動向'+nl
+    +'# ④ 今月の施策と成果'+nl
+    +'# ⑤ 課題と改善策'+nl
+    +'# ⑥ 来月のアクションプラン'+nl
+    +'# ⑦ 経営者コメント';
+
+  try{
+    // GAS経由でのみ生成（ブラウザからの直接API呼び出しはCORSで不可）
+    if(!S.gasConnected||!S.gasUrl||!S.adminKey){
+      throw new Error('Google Sheets（GAS）に接続してください。\n⚙️ DB設定 → Google Sheets同期 でURLと管理者キーを設定して「接続 & テスト」を押してください。');
+    }
+    var res=await fetch(S.gasUrl,{method:'POST',body:JSON.stringify({adminKey:S.adminKey,action:'generate_report',prompt:prompt})});
+    var rawText=await res.text();
+    var j;
+    try{j=JSON.parse(rawText);}catch(pe){throw new Error('GAS応答の解析失敗: '+rawText.substring(0,200));}
+    if(j&&j.ok&&j.text){
+      S.genResult=j.text;
+    }else{
+      throw new Error(j&&j.error?j.error:'GAS応答異常: '+rawText.substring(0,100));
+    }
+  }catch(e){
+    S.genResult='## ⚠️ 生成エラー\n\n'+e.message;
+  }
+  S.genLoading=false;render();
+}
+
+
+async function gasPost(body){
+  if(!S.gasUrl||!S.adminKey)return;
+  try{await fetch(S.gasUrl,{method:'POST',body:JSON.stringify(Object.assign({adminKey:S.adminKey},body))});}catch(e){}
+}
+async function loadGas(){
+  if(!S.gasUrl)return;
+  S.dbLoading=true;S.gasStatus='同期中...';render();
+  try{
+    var r=await fetch(S.gasUrl+'?type=all'),j=await r.json();
+    if(j&&j.ok){
+      if(j.reports)S.reports=j.reports;if(j.kpi)S.kpiData=j.kpi;
+      if(j.financeNotes)S.finNotes=j.financeNotes;
+      if(j.formAnswers)S.formAnswers=j.formAnswers;
+      if(j.csvData&&j.csvData.rawData&&!S.csv){S.csv=j.csvData.rawData;S.csvName=j.csvData.csvName||'（クラウドから）';S.raw=parseCSV(S.csv);}
+      S.gasStatus='✅ 同期完了 ('+new Date().toLocaleTimeString('ja-JP')+')';
+    }else{S.gasStatus='⚠️ '+(j&&j.error||'エラー');}
+  }catch(e){S.gasStatus='⚠️ '+e.message;}
+  S.dbLoading=false;render();
+}
+async function connectGas(){
+  var url=(document.getElementById('gas-url')||{}).value||'';
+  var key=(document.getElementById('gas-key')||{}).value||'';
+  if(!url||!key)return;
+  S.gasTesting=true;S.gasStatus='接続テスト中...';render();
+  try{
+    var r=await fetch(url+'?type=all'),j=await r.json();
+    if(j&&j.ok!==undefined){S.gasConnected=true;S.gasStatus='✅ 接続成功！';S.showSettings=false;S.gasTesting=false;render();setTimeout(loadGas,300);}
+    else{S.gasStatus='⚠️ レスポンス不正';S.gasTesting=false;render();}
+  }catch(e){S.gasStatus='⚠️ '+e.message;S.gasTesting=false;render();}
+}
+
+render();
+if(S.gasConnected)loadGas();
+</script>
+</body>
+</html>

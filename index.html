@@ -664,113 +664,96 @@ function buildMonth(){
   var exps=note.expenses&&note.expenses.length?note.expenses:[{label:'',amount:'',date:'',type:'plan'}];
 
   var finHtml='';
-  var _dbg='md: rev='+md.rev+' sg='+md.sg+' op='+md.op+' net='+md.net;
   if(md.rev===0&&md.sg===0&&md.op===0&&md.net===0){
-    // CSVにデータがあるが列名が一致しない可能性があるので、利用可能なキーを表示
-    var csvKeys=Object.keys(S.raw).filter(function(k){return S.raw[k][S.selMonth]&&S.raw[k][S.selMonth]!==0;});
-    finHtml=card('<div style="text-align:center;padding:20px"><div style="font-size:28px;margin-bottom:8px">📂</div><div style="font-size:14px;font-weight:700;color:'+C.textM+';margin-bottom:6px">'+S.selMonth+'の財務データがありません</div><div style="font-size:12px;color:'+C.textS+';margin-bottom:10px">損益CSVをアップロードするとデータが表示されます</div>'+(csvKeys.length?'<div style="text-align:left;font-size:11px;color:'+C.textS+';background:'+C.surf+';border-radius:8px;padding:10px;margin-top:8px"><div style="font-weight:700;margin-bottom:4px">📋 CSVの列名（この月にデータあり）:</div>'+csvKeys.slice(0,15).map(function(k){return'<div>・'+esc(k)+': '+((S.raw[k][S.selMonth]||0)).toLocaleString()+'</div>';}).join('')+'</div>':'')+'</div>');
+    var csvKeys=Object.keys(S.raw).filter(function(k){var d=S.raw[k];return d&&d[S.selMonth]&&d[S.selMonth]!==0;});
+    finHtml=card('<div style="text-align:center;padding:20px"><div style="font-size:28px;margin-bottom:8px">📂</div><div style="font-size:14px;font-weight:700;color:'+C.textM+';margin-bottom:6px">'+S.selMonth+'の財務データがありません</div><div style="font-size:12px;color:'+C.textS+';margin-bottom:10px">損益CSVをアップロードするとデータが表示されます</div>'+(csvKeys.length?'<div style="text-align:left;font-size:11px;color:'+C.textS+';background:'+C.surf+';border-radius:8px;padding:10px;margin-top:8px"><div style="font-weight:700;margin-bottom:4px">📋 CSVの列名:</div>'+csvKeys.slice(0,15).map(function(k){return'<div>・'+esc(k)+'</div>';}).join('')+'</div>':'')+'</div>');
   }else{
     var plTemp=note.pl_temp||{};
     var editPl=(S.finEditPl===S.selMonth);
-    function getRaw(key){var d=S.raw[key];if(!d)return 0;var v=d[S.selMonth];return(v!=null&&v!=='')?Number(v):0;}
-    // plTemp[key] = {v: 数値, confirmed: bool} または旧形式の数値
+
+    // CSV値取得
+    function getRaw(key){var d=S.raw[key];if(!d)return 0;var v=d[S.selMonth];return(v!=null&&v!=='')?(+v)||0:0;}
+    // plTemp取得 {v, confirmed} or null
     function getPt(key){var e=plTemp[key];if(e==null)return null;if(typeof e==='object')return e;return{v:e,confirmed:false};}
-    function dispVal(key){var r=getRaw(key);if(r!==0)return r;var pt=getPt(key);return pt!=null?pt.v:0;}
+    // 表示値：手入力があれば手入力値、なければCSV値
+    function effVal(key){var pt=getPt(key);return(pt!=null&&pt.v!=null)?pt.v:getRaw(key);}
+    // ステータス
     function getStatus(key){
-      // CSVに値あり → 'csv'
-      if(getRaw(key)!==0)return'csv';
-      var pt=getPt(key);
-      if(pt==null)return'none';
-      return pt.confirmed?'confirmed':'temp';
+      if(getRaw(key)!==0&&getPt(key)==null)return'csv';   // CSV値のみ
+      if(getPt(key)==null)return'none';                    // 未入力
+      if(getRaw(key)!==0)return'override';                 // CSV上書き
+      return getPt(key).confirmed?'confirmed':'temp';      // 手入力のみ
     }
 
-    var hasTempData=Object.keys(plTemp).some(function(k){var s=getStatus(k);return s==='temp'||s==='confirmed';});
+    // 費用項目キー
+    var sgKeys=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費'];
 
-    var detailRows=[
-      {key:'売上高',bold:true,color:C.teal},
-      {key:'売上原価合計',bold:false,color:C.textS},
-      {key:'売上総利益',bold:true,color:C.teal},
-      null,
-      {key:'役員報酬',bold:false,color:C.textS},
-      {key:'給料賃金',bold:false,color:C.textS},
-      {key:'法定福利費',bold:false,color:C.textS},
-      {key:'業務委託料',bold:false,color:C.textS},
-      {key:'地代家賃',bold:false,color:C.textS},
-      {key:'水道光熱費',bold:false,color:C.textS},
-      {key:'備品・消耗品費',bold:false,color:C.textS},
-      {key:'広告宣伝費',bold:false,color:C.textS},
-      {key:'通信費',bold:false,color:C.textS},
-      null,
-      {key:'販管費合計',fixed:effSg,bold:true,color:C.amber},
-      {key:'営業利益',fixed:effOp,bold:true,color:effOp>=0?C.green:C.red},
-      {key:'経常利益',fixed:effEco,bold:true,color:effEco>=0?C.green:C.red},
-      {key:'純利益',fixed:effNet,bold:true,color:effNet>=0?C.green:C.red},
-    ];
+    // 集計値を手入力ベースで再計算
+    var calcSg=0;
+    sgKeys.forEach(function(k){calcSg+=effVal(k);});
+    // 売上高の手入力
+    var calcRev=effVal('売上高')||md.rev;
+    // 販管費合計：個別項目の合計（CSV or 手入力）
+    // ただし個別項目がすべて0の場合はCSVのmd.sgを使う
+    var hasAnyItem=sgKeys.some(function(k){return effVal(k)!==0;});
+    var effSg=hasAnyItem?calcSg:md.sg;
+    var effRev=calcRev;
+    // 営業利益以降：CSVに値があればCSV、なければ再計算
+    var effOp=md.op!==0?md.op+(effSg-md.sg)*-1+(effRev-md.rev):effRev-effSg;
+    var effEco=md.eco!==0?md.eco+(effSg-md.sg)*-1+(effRev-md.rev):effOp;
+    var effNet=md.net!==0?md.net+(effSg-md.sg)*-1+(effRev-md.rev):effEco;
+    var hasAdjust=sgKeys.some(function(k){return getPt(k)!=null;});
 
-    // バッジHTML
+    // バッジ
     function statusBadge(st){
       if(st==='csv')return'<span style="font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px;background:'+C.teal+';color:white">CSV</span>';
+      if(st==='override')return'<span style="font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px;background:'+C.blue+';color:white">修正</span>';
       if(st==='confirmed')return'<span style="font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px;background:'+C.green+';color:white">確定</span>';
       if(st==='temp')return'<span style="font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px;background:'+C.amber+';color:white">仮</span>';
       return'';
     }
 
-    var dRows=detailRows.map(function(row){
-      if(!row)return'<div style="height:1px;background:'+C.border+';margin:4px 0;grid-column:1/-1"></div>';
-      var isFixed=row.fixed!=null;
-      var v=isFixed?row.fixed:dispVal(row.key);
-      var st=isFixed?'csv':getStatus(row.key);
-      var pt=isFixed?null:getPt(row.key);
-      var curVal=isFixed?null:(pt!=null?pt.v:(getRaw(row.key)||''));
-      var curConf=isFixed?null:(pt!=null?pt.confirmed:false);
+    // 明細行定義
+    var detailDefs=[
+      {key:'売上高',bold:true,color:C.teal,editable:true},
+      {key:'売上原価合計',bold:false,color:C.textS,editable:true},
+      {key:'売上総利益',bold:true,color:C.teal,editable:false,calcVal:effRev},
+      null,
+    ];
+    sgKeys.forEach(function(k){detailDefs.push({key:k,bold:false,color:C.textS,editable:true});});
+    detailDefs=detailDefs.concat([
+      null,
+      {key:'販管費合計',bold:true,color:C.amber,editable:false,calcVal:effSg},
+      {key:'営業利益',bold:true,color:effOp>=0?C.green:C.red,editable:false,calcVal:effOp},
+      {key:'経常利益',bold:true,color:effEco>=0?C.green:C.red,editable:false,calcVal:effEco},
+      {key:'純利益',bold:true,color:effNet>=0?C.green:C.red,editable:false,calcVal:effNet},
+    ]);
 
-      return'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border-radius:7px;background:'+(row.bold?row.color+'12':st==='temp'?C.amberL:st==='confirmed'?C.greenL:'transparent')+';gap:8px">'
+    var dRows=detailDefs.map(function(row){
+      if(!row)return'<div style="height:1px;background:'+C.border+';margin:4px 0;grid-column:1/-1"></div>';
+      var v=row.calcVal!=null?row.calcVal:effVal(row.key);
+      var st=row.editable?getStatus(row.key):(row.calcVal!=null?'calc':'csv');
+      var pt=row.editable?getPt(row.key):null;
+      var bgColor=row.bold?row.color+'12':(st==='temp'?C.amberL:st==='confirmed'?C.greenL:st==='override'?C.blueL:'transparent');
+      return'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border-radius:7px;background:'+bgColor+';gap:8px">'
         +'<span style="font-size:12.5px;color:'+(row.bold?C.textM:C.textS)+';font-weight:'+(row.bold?600:400)+';flex-shrink:0">'+esc(row.key)+'</span>'
-        +(editPl&&!isFixed
-          // 編集モード
+        +(editPl&&row.editable
           ?'<div style="display:flex;align-items:center;gap:5px;flex:1;justify-content:flex-end">'
-            // 仮/確定 トグル
-            +'<select class="pl-status-sel" data-key="'+esc(row.key)+'" style="padding:3px 6px;border-radius:6px;border:1px solid '+C.border+';font-size:11px;background:white">'
-              +'<option value="temp"'+(curConf===false&&pt!=null?' selected':'')+'>🟡 仮</option>'
-              +'<option value="confirmed"'+(curConf===true?' selected':'')+'>🟢 確定</option>'
+            +statusBadge(st)
+            +'<select class="pl-status-sel" data-key="'+esc(row.key)+'" style="padding:3px 6px;border-radius:6px;border:1px solid '+C.border+';font-size:11px">'
+              +'<option value="temp"'+(pt&&!pt.confirmed?' selected':'')+'>🟡 仮</option>'
+              +'<option value="confirmed"'+(pt&&pt.confirmed?' selected':'')+'>🟢 確定</option>'
             +'</select>'
-            +'<input class="pl-temp-inp" data-key="'+esc(row.key)+'" type="number" value="'+(curVal||'')+'" placeholder="（円）" style="width:110px;padding:4px 8px;border-radius:6px;border:1.5px solid '+(st==='temp'?C.amber:st==='confirmed'?C.green:C.border)+';font-size:12px;text-align:right"/>'
+            +'<input class="pl-temp-inp" data-key="'+esc(row.key)+'" type="number" value="'+(pt!=null?pt.v:getRaw(row.key)||'')+'" placeholder="（円）" style="width:110px;padding:4px 8px;border-radius:6px;border:1.5px solid '+(st==='temp'?C.amber:st==='confirmed'?C.green:C.border)+';font-size:12px;text-align:right"/>'
             +'<span style="font-size:10px;color:'+C.textX+'">円</span>'
           +'</div>'
-          // 表示モード
           :'<div style="display:flex;align-items:center;gap:5px">'
-            +statusBadge(st)
-            +'<span style="font-size:12.5px;font-weight:'+(row.bold?700:500)+';color:'+(v<0?C.red:row.color)+'">'+(v===0?'—':(v<0?'▲':'')+Math.abs(v).toLocaleString()+'円')+'</span>'
+            +(row.editable?statusBadge(st):'')
+            +'<span style="font-size:12.5px;font-weight:'+(row.bold?700:500)+';color:'+(v<0?C.red:row.color)+'">'+(v===0&&!row.bold?'—':(v<0?'▲':'')+Math.abs(v).toLocaleString()+'円')+'</span>'
           +'</div>'
         )
         +'</div>';
     }).join('');
-
-
-    // 仮入力差分の計算（表示用のみ・CSVの値を上書きしない）
-    var sgKeys=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費'];
-    var diffSg=0;
-    var hasAdjust=false;
-    sgKeys.forEach(function(k){
-      var csv=getRaw(k)||0;
-      var pt=getPt(k);
-      if(pt!=null&&pt.v!=null&&!isNaN(pt.v)){
-        diffSg+=(pt.v-csv);
-        hasAdjust=true;
-      }
-    });
-    var ptRev=getPt('売上高');
-    var diffRev=(ptRev!=null&&ptRev.v!=null&&!isNaN(ptRev.v))?(ptRev.v-(md.rev||0)):0;
-    if(diffRev!==0)hasAdjust=true;
-
-    // 表示値：CSVの集計値＋差分
-    var effRev=md.rev+diffRev;
-    var effSg=md.sg+diffSg;
-    var effOp=md.op-diffSg+diffRev;
-    var effEco=md.eco-diffSg+diffRev;
-    var effNet=md.net-diffSg+diffRev;
-    // 差分がない場合はCSVの値をそのまま使う
-    if(!hasAdjust){effRev=md.rev;effSg=md.sg;effOp=md.op;effEco=md.eco;effNet=md.net;}
 
     finHtml='<div>'
       +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px">'
@@ -780,18 +763,14 @@ function buildMonth(){
       +kTile('経常利益',fmtM(effEco),effEco>=0?C.green:C.red)
       +kTile('純利益',fmtM(effNet),effNet>=0?C.green:C.red)
       +'</div>'
-      +(hasAdjust?'<div style="font-size:10px;color:'+C.amber+';margin-bottom:10px;padding:6px 12px;background:'+C.amberL+';border-radius:8px;border:1px solid '+C.amber+'33">📝 仮入力の差分を反映した試算値です。CSV確定後に自動更新されます。</div>':'')
-      +'<div style="font-size:9px;color:'+C.textX+';margin-bottom:6px">'+esc(_dbg)+'</div>'
+      +(hasAdjust?'<div style="font-size:10px;color:'+C.amber+';margin-bottom:10px;padding:6px 12px;background:'+C.amberL+';border-radius:8px;border:1px solid '+C.amber+'33">📝 手入力の値を反映した試算です。CSV確定後も手入力値で上書き表示されます。</div>':'')
       +card(
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
           +slabel('📋','損益計算書 明細')
           +(editPl
-            ?'<div style="display:flex;gap:6px">'
-              +btnS('btn-cancel-pl','✕ キャンセル','font-size:11px;padding:5px 12px')
-              +btnP('btn-save-pl-temp','💾 保存','font-size:11px;padding:5px 16px')
-            +'</div>'
+            ?'<div style="display:flex;gap:6px">'+btnS('btn-cancel-pl','✕ キャンセル','font-size:11px;padding:5px 12px')+btnP('btn-save-pl-temp','💾 保存','font-size:11px;padding:5px 16px')+'</div>'
             :'<div style="display:flex;align-items:center;gap:8px">'
-              +(hasTempData?'<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:8px;background:'+C.amber+';color:white">仮入力あり</span>':'')
+              +(hasAdjust?'<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:8px;background:'+C.amber+';color:white">手入力あり</span>':'')
               +btnS('btn-edit-pl','✏️ 数字を編集','font-size:11px;padding:5px 12px')
             +'</div>'
           )

@@ -664,6 +664,7 @@ function buildMonth(){
   var exps=note.expenses&&note.expenses.length?note.expenses:[{label:'',amount:'',date:'',type:'plan'}];
 
   var finHtml='';
+  var _dbg='md: rev='+md.rev+' sg='+md.sg+' op='+md.op+' net='+md.net;
   if(md.rev===0&&md.sg===0&&md.op===0&&md.net===0){
     // CSVにデータがあるが列名が一致しない可能性があるので、利用可能なキーを表示
     var csvKeys=Object.keys(S.raw).filter(function(k){return S.raw[k][S.selMonth]&&S.raw[k][S.selMonth]!==0;});
@@ -780,6 +781,7 @@ function buildMonth(){
       +kTile('純利益',fmtM(effNet),effNet>=0?C.green:C.red)
       +'</div>'
       +(hasAdjust?'<div style="font-size:10px;color:'+C.amber+';margin-bottom:10px;padding:6px 12px;background:'+C.amberL+';border-radius:8px;border:1px solid '+C.amber+'33">📝 仮入力の差分を反映した試算値です。CSV確定後に自動更新されます。</div>':'')
+      +'<div style="font-size:9px;color:'+C.textX+';margin-bottom:6px">'+esc(_dbg)+'</div>'
       +card(
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
           +slabel('📋','損益計算書 明細')
@@ -1334,7 +1336,7 @@ async function loadGas(){
       if(j.reports)S.reports=j.reports;if(j.kpi)S.kpiData=j.kpi;
       if(j.financeNotes)S.finNotes=j.financeNotes;
       if(j.formAnswers)S.formAnswers=j.formAnswers;
-      if(j.csvData&&j.csvData.rawData&&!S.csv){S.csv=j.csvData.rawData;S.csvName=j.csvData.csvName||'（クラウドから）';S.raw=parseCSV(S.csv);}
+      if(j.csvData&&j.csvData.rawData){S.csv=j.csvData.rawData;S.csvName=j.csvData.csvName||'（クラウドから）';S.raw=parseCSV(S.csv);}
       S.gasStatus='✅ 同期完了 ('+new Date().toLocaleTimeString('ja-JP')+')';
     }else{S.gasStatus='⚠️ '+(j&&j.error||'エラー');}
   }catch(e){S.gasStatus='⚠️ '+e.message;}

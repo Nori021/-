@@ -713,7 +713,7 @@ function buildMonth(){
         +'</div>';
     }).join('');
   var expFormRows=exps.map(function(e,i){
-    return'<div style="display:grid;grid-template-columns:auto 1fr auto auto;gap:6px;align-items:center;padding:8px;background:'+C.surf+';border-radius:8px;border:1px solid '+C.border+'">'
+    return'<div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:6px;align-items:center;padding:8px;background:'+C.surf+';border-radius:8px;border:1px solid '+C.border+'">'
       +'<select data-ei="'+i+'" class="exp-type" style="padding:5px 7px;border-radius:6px;border:1px solid '+C.border+';font-size:11px;background:'+C.white+'">'
       +'<option value="plan"'+(e.type==='plan'?' selected':'')+'>📅 予定</option>'
       +'<option value="actual"'+(e.type==='actual'?' selected':'')+'>✅ 実績</option>'
@@ -722,7 +722,9 @@ function buildMonth(){
       +'<input data-ei="'+i+'" class="exp-date" type="date" value="'+esc(e.date||'')+'" style="padding:5px 7px;border-radius:6px;border:1px solid '+C.border+';font-size:11px;width:130px"/>'
       +'<div style="display:flex;align-items:center;gap:4px">'
       +'<input data-ei="'+i+'" class="exp-amount" type="number" value="'+(e.amount||'')+'" placeholder="金額" style="width:72px;padding:5px 7px;border-radius:6px;border:1px solid '+C.border+';font-size:12px"/>'
-      +'<span style="font-size:11px;color:'+C.textX+'">万円</span></div></div>';
+      +'<span style="font-size:11px;color:'+C.textX+'">万円</span></div>'
+      +'<button class="btn-del-expense" data-ei="'+i+'" style="padding:5px 8px;border-radius:6px;border:1px solid '+C.red+'33;background:'+C.redL+';color:'+C.red+';font-size:13px;cursor:pointer;flex-shrink:0">🗑️</button>'
+      +'</div>';
   }).join('');
   var noteHtml=card(
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">'
@@ -994,6 +996,18 @@ function bindEvents(){
   });
   var badd=document.getElementById('btn-add-expense');
   if(badd)badd.addEventListener('click',function(){var note=Object.assign({},S.finNotes[S.selMonth]||{});note.expenses=(note.expenses||[]).concat([{label:'',amount:'',date:'',type:'plan'}]);S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;render();});
+  document.querySelectorAll('.btn-del-expense').forEach(function(b){
+    b.addEventListener('click',function(){
+      var idx=parseInt(b.dataset.ei);
+      var note=Object.assign({},S.finNotes[S.selMonth]||{});
+      var exps=(note.expenses||[]).slice();
+      exps.splice(idx,1);
+      note.expenses=exps;
+      S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;
+      gasPost({action:'save_finance_notes',data:S.finNotes});
+      render();
+    });
+  });
   var bexp=document.getElementById('btn-save-expenses');
   if(bexp)bexp.addEventListener('click',function(){
     var types=[].slice.call(document.querySelectorAll('.exp-type'));

@@ -858,7 +858,7 @@ function buildMonth(){
   var memoHtml=card(
     slabel('📝','フリーメモ')
     +'<textarea id="fin-memo-area" rows="5" style="width:100%;border:1.5px solid '+C.border+';border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.8;resize:vertical;font-family:inherit" placeholder="この月の気づき・共有事項・補足など自由に記入できます">'+esc(finMemo)+'</textarea>'
-    +'<div style="display:flex;justify-content:flex-end;margin-top:8px">'+btnP('btn-save-fin-memo','💾 メモを保存','font-size:12px;padding:7px 18px')+'</div>'
+    +'<div style="font-size:10px;color:'+C.textX+';margin-top:6px;text-align:right" id="memo-save-status">自動保存されます</div>'
   );
 
   var repBody='';
@@ -931,7 +931,7 @@ function buildMonth(){
   var repHtml=cardNP(
     '<div style="padding:14px 20px;border-bottom:1px solid '+C.border+';display:flex;justify-content:space-between;align-items:center;background:'+C.surf+'">'
     +'<div style="display:flex;align-items:center;gap:9px"><span style="font-size:17px">📝</span><div><div style="font-size:13px;font-weight:800;color:'+C.text+'">'+S.selMonth+' 経営報告書</div>'+(rep.savedAt?'<div style="font-size:10px;color:'+C.textX+'">保存: '+esc(rep.savedAt)+'</div>':'')+'</div>'+(rep.text?badge('保存済み',C.green):'')+'</div>'
-    +'<div style="display:flex;gap:7px">'+(S.repMode==='view'?btnS('btn-rep-upload','📁 アップロード','font-size:12px')+(rep.text?btnS('btn-rep-edit','✏️ 内容を修正','font-size:12px')+btnS('btn-rep-delete','🗑️ 削除','font-size:12px;color:'+C.red+';border-color:'+C.red):btnP('btn-rep-create','✨ AIで作成')):btnS('btn-rep-close','✕ 閉じる','font-size:12px'))+'</div></div>'+repBody
+    +'<div style="display:flex;gap:7px">'+(S.repMode==='view'?btnS('btn-rep-upload','📁 アップロード','font-size:12px')+(rep.text?btnS('btn-rep-edit','✏️ 内容を修正','font-size:12px')+btnS('btn-rep-recreate','🔄 AIで再作成','font-size:12px')+btnS('btn-rep-delete','🗑️ 削除','font-size:12px;color:'+C.red+';border-color:'+C.red):btnP('btn-rep-create','✨ AIで作成')):btnS('btn-rep-close','✕ 閉じる','font-size:12px'))+'</div></div>'+repBody
   );
 
   var secTabs=[['finance','📉 財務'],['kpi','📋 KPI'],['report','📝 経営報告書']].map(function(pair){
@@ -1007,6 +1007,8 @@ function bindEvents(){
   if(brc2)brc2.addEventListener('click',function(){S.repMode='create';S.genResult='';if(S.formAnswers&&S.formAnswers[S.selMonth])S.iAns=S.formAnswers[S.selMonth];render();});
   // 再作成ボタン（既存データあり）→ iAnsリセット
   if(brc)brc.addEventListener('click',function(){S.repMode='create';S.genResult='';if(S.formAnswers&&S.formAnswers[S.selMonth])S.iAns=S.formAnswers[S.selMonth];render();});
+  var brr=document.getElementById('btn-rep-recreate');
+  if(brr)brr.addEventListener('click',function(){S.repMode='create';S.genResult='';if(S.formAnswers&&S.formAnswers[S.selMonth])S.iAns=S.formAnswers[S.selMonth];render();});
   var bru=document.getElementById('btn-rep-upload');if(bru)bru.addEventListener('click',function(){S.repMode='upload';render();});
   var brd=document.getElementById('btn-rep-delete');
   if(brd)brd.addEventListener('click',function(){
@@ -1055,16 +1057,24 @@ function bindEvents(){
   if(rdrop){rdrop.addEventListener('click',function(){rfile.click();});rdrop.addEventListener('dragover',function(e){e.preventDefault();});rdrop.addEventListener('drop',function(e){e.preventDefault();handleRepFile(e.dataTransfer.files[0]);});}
   if(rfile)rfile.addEventListener('change',function(e){handleRepFile(e.target.files[0]);});
 
-  var bfm=document.getElementById('btn-save-fin-memo');
-  if(bfm)bfm.addEventListener('click',function(){
-    var ta=document.getElementById('fin-memo-area');if(!ta)return;
-    var note=Object.assign({},S.finNotes[S.selMonth]||{});
-    note.memo=ta.value;
-    S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;
-    gasPost({action:'save_finance_notes',data:S.finNotes});
-    var btn=document.getElementById('btn-save-fin-memo');
-    if(btn){btn.textContent='✅ 保存しました';setTimeout(function(){render();},1200);}
-  });
+  // メモ自動保存（入力停止1.5秒後）
+  var _memoTimer=null;
+  var ta=document.getElementById('fin-memo-area');
+  if(ta){
+    ta.addEventListener('input',function(){
+      var status=document.getElementById('memo-save-status');
+      if(status)status.textContent='入力中...';
+      clearTimeout(_memoTimer);
+      _memoTimer=setTimeout(function(){
+        var note=Object.assign({},S.finNotes[S.selMonth]||{});
+        note.memo=ta.value;
+        S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;
+        gasPost({action:'save_finance_notes',data:S.finNotes});
+        if(status)status.textContent='✅ 保存しました';
+        setTimeout(function(){if(status)status.textContent='自動保存されます';},2000);
+      },1500);
+    });
+  }
 
   var bep=document.getElementById('btn-edit-pl');
   if(bep)bep.addEventListener('click',function(){S.finEditPl=S.selMonth;render();});

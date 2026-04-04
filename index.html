@@ -745,24 +745,38 @@ function buildMonth(){
 
 
     // 仮入力を反映した実効値を計算
+    // 方針：CSVをベースに、仮入力がある項目だけ差分を加減算
     var sgKeys=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費'];
-    var effSg=md.sg!==0?md.sg:sgKeys.reduce(function(s,k){return s+dispVal(k);},0);
-    var effRev=md.rev!==0?md.rev:dispVal('売上高');
-    var effGp=dispVal('売上総利益')||( effRev - dispVal('売上原価合計') );
-    var effOp=md.op!==0?md.op:(effGp - effSg);
-    var effEco=md.eco!==0?md.eco:effOp;
-    var effNet=md.net!==0?md.net:effEco;
-    var usingCalc=(md.sg===0||md.op===0||md.net===0)&&hasTempData;
+    var effRev=md.rev;
+    var effSg=md.sg;
+    var diffSg=0;
+    var hasAdjust=false;
+    sgKeys.forEach(function(k){
+      var csv=getRaw(k);
+      var pt=getPt(k);
+      if(pt!=null&&pt.v!=null){
+        diffSg+=(pt.v-csv); // 仮値とCSVの差分
+        hasAdjust=true;
+      }
+    });
+    // 売上高に仮入力があれば反映
+    var ptRev=getPt('売上高');
+    if(ptRev!=null&&ptRev.v!=null){effRev=ptRev.v;hasAdjust=true;}
+    effSg=md.sg+diffSg;
+    var effOp=md.op-diffSg+(effRev-md.rev);
+    var effEco=md.eco-diffSg+(effRev-md.rev);
+    var effNet=md.net-diffSg+(effRev-md.rev);
+    var usingCalc=hasAdjust;
 
     finHtml='<div>'
       +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px">'
       +kTile('売上',fmtM(effRev),C.teal)
-      +kTile('販管費',fmtM(effSg)+(usingCalc&&md.sg===0?' *':''),C.amber)
-      +kTile('営業利益',fmtM(effOp)+(usingCalc&&md.op===0?' *':''),effOp>=0?C.green:C.red)
-      +kTile('経常利益',fmtM(effEco)+(usingCalc&&md.eco===0?' *':''),effEco>=0?C.green:C.red)
-      +kTile('純利益',fmtM(effNet)+(usingCalc&&md.net===0?' *':''),effNet>=0?C.green:C.red)
+      +kTile('販管費',fmtM(effSg),C.amber)
+      +kTile('営業利益',fmtM(effOp),effOp>=0?C.green:C.red)
+      +kTile('経常利益',fmtM(effEco),effEco>=0?C.green:C.red)
+      +kTile('純利益',fmtM(effNet),effNet>=0?C.green:C.red)
       +'</div>'
-      +(usingCalc?'<div style="font-size:10px;color:'+C.amber+';margin-bottom:10px;padding:6px 12px;background:'+C.amberL+';border-radius:8px;border:1px solid '+C.amber+'33">* 仮入力の数字をもとに試算した参考値です。CSV確定後に自動更新されます。</div>':'')
+      +(usingCalc?'<div style="font-size:10px;color:'+C.amber+';margin-bottom:10px;padding:6px 12px;background:'+C.amberL+';border-radius:8px;border:1px solid '+C.amber+'33">📝 仮入力の差分を反映した試算値です。CSV確定後に自動更新されます。</div>':'')
       +card(
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
           +slabel('📋','損益計算書 明細')

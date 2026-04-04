@@ -701,7 +701,9 @@ function buildMonth(){
     // 営業利益以降：CSVに値があればCSV、なければ再計算
     var effOp=md.op!==0?md.op+(effSg-md.sg)*-1+(effRev-md.rev):effRev-effSg;
     var effEco=md.eco!==0?md.eco+(effSg-md.sg)*-1+(effRev-md.rev):effOp;
-    var effNet=md.net!==0?md.net+(effSg-md.sg)*-1+(effRev-md.rev):effEco;
+    // 純利益は経常利益との差（特別損益）を保持して計算
+    var specialPL=md.net-md.eco;
+    var effNet=effEco+specialPL;
     var hasAdjust=sgKeys.some(function(k){return getPt(k)!=null;});
 
     // バッジ

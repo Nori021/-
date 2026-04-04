@@ -667,36 +667,73 @@ function buildMonth(){
   if(md.rev===0&&md.sg===0){
     finHtml=card('<div style="text-align:center;padding:30px"><div style="font-size:28px;margin-bottom:8px">📂</div><div style="font-size:14px;font-weight:700;color:'+C.textM+';margin-bottom:6px">'+S.selMonth+'の財務データがありません</div><div style="font-size:12px;color:'+C.textS+'">損益CSVをアップロードするとデータが表示されます</div></div>');
   }else{
+    var plTemp=note.pl_temp||{};
+    // 仮入力可能な費用項目キー一覧
+    var tempKeys=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費'];
+    function getRaw(key){return S.raw[key]&&S.raw[key][S.selMonth]||0;}
+    function getVal(key){
+      var real=getRaw(key);
+      var tmp=plTemp[key]!=null?plTemp[key]:null;
+      return{real:real,tmp:tmp,disp:real!==0?real:(tmp!=null?tmp:0),hasTemp:tmp!=null&&real===0};
+    }
     var detailRows=[
-      ['売上高',S.raw['売上高']&&S.raw['売上高'][S.selMonth]||0,true,C.teal],
-      ['売上原価合計',S.raw['売上原価合計']&&S.raw['売上原価合計'][S.selMonth]||0,false,C.textS],
-      ['売上総利益',S.raw['売上総利益']&&S.raw['売上総利益'][S.selMonth]||0,true,C.teal],null,
-      ['役員報酬',S.raw['役員報酬']&&S.raw['役員報酬'][S.selMonth]||0,false,C.textS],
-      ['給料賃金',S.raw['給料賃金']&&S.raw['給料賃金'][S.selMonth]||0,false,C.textS],
-      ['法定福利費',S.raw['法定福利費']&&S.raw['法定福利費'][S.selMonth]||0,false,C.textS],
-      ['業務委託料',S.raw['業務委託料']&&S.raw['業務委託料'][S.selMonth]||0,false,C.textS],
-      ['地代家賃',S.raw['地代家賃']&&S.raw['地代家賃'][S.selMonth]||0,false,C.textS],
-      ['水道光熱費',S.raw['水道光熱費']&&S.raw['水道光熱費'][S.selMonth]||0,false,C.textS],
-      ['備品・消耗品費',S.raw['備品・消耗品費']&&S.raw['備品・消耗品費'][S.selMonth]||0,false,C.textS],
-      ['広告宣伝費',S.raw['広告宣伝費']&&S.raw['広告宣伝費'][S.selMonth]||0,false,C.textS],
-      ['通信費',S.raw['通信費']&&S.raw['通信費'][S.selMonth]||0,false,C.textS],null,
-      ['販管費合計',md.sg,true,C.amber],['営業利益',md.op,true,md.op>=0?C.green:C.red],
-      ['経常利益',md.eco,true,md.eco>=0?C.green:C.red],['純利益',md.net,true,md.net>=0?C.green:C.red],
+      {key:'売上高',bold:true,color:C.teal},
+      {key:'売上原価合計',bold:false,color:C.textS},
+      {key:'売上総利益',bold:true,color:C.teal},
+      null,
+      {key:'役員報酬',bold:false,color:C.textS,canTemp:true},
+      {key:'給料賃金',bold:false,color:C.textS,canTemp:true},
+      {key:'法定福利費',bold:false,color:C.textS,canTemp:true},
+      {key:'業務委託料',bold:false,color:C.textS,canTemp:true},
+      {key:'地代家賃',bold:false,color:C.textS,canTemp:true},
+      {key:'水道光熱費',bold:false,color:C.textS,canTemp:true},
+      {key:'備品・消耗品費',bold:false,color:C.textS,canTemp:true},
+      {key:'広告宣伝費',bold:false,color:C.textS,canTemp:true},
+      {key:'通信費',bold:false,color:C.textS,canTemp:true},
+      null,
+      {key:'販管費合計',fixed:md.sg,bold:true,color:C.amber},
+      {key:'営業利益',fixed:md.op,bold:true,color:md.op>=0?C.green:C.red},
+      {key:'経常利益',fixed:md.eco,bold:true,color:md.eco>=0?C.green:C.red},
+      {key:'純利益',fixed:md.net,bold:true,color:md.net>=0?C.green:C.red},
     ];
     var dRows=detailRows.map(function(row){
-      if(!row)return'<div style="height:1px;background:'+C.border+';margin:2px 0;grid-column:1/-1"></div>';
-      return'<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 10px;border-radius:7px;background:'+(row[2]?row[3]+'12':'transparent')+'">'
-        +'<span style="font-size:12.5px;color:'+(row[2]?C.textM:C.textS)+';font-weight:'+(row[2]?600:400)+'">'+esc(row[0])+'</span>'
-        +'<span style="font-size:12.5px;font-weight:'+(row[2]?700:500)+';color:'+(row[1]<0?C.red:row[3])+'">'+(row[1]===0?'—':(row[1]<0?'▲':'')+Math.abs(row[1]).toLocaleString()+'円')+'</span></div>';
+      if(!row)return'<div style="height:1px;background:'+C.border+';margin:4px 0;grid-column:1/-1"></div>';
+      var v=row.fixed!=null?row.fixed:getRaw(row.key);
+      var tmp=row.canTemp?(plTemp[row.key]!=null?plTemp[row.key]:null):null;
+      var showTemp=row.canTemp&&v===0; // CSVに値がない時だけ仮入力欄を表示
+      var dispV=v!==0?v:(tmp!=null?tmp:0);
+      var isTemp=v===0&&tmp!=null;
+      return'<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 10px;border-radius:7px;background:'+(row.bold?row.color+'12':'transparent')+';gap:8px">'
+        +'<span style="font-size:12.5px;color:'+(row.bold?C.textM:C.textS)+';font-weight:'+(row.bold?600:400)+';flex-shrink:0">'+esc(row.key)+'</span>'
+        +(showTemp
+          ?'<div style="display:flex;align-items:center;gap:4px;flex:1;justify-content:flex-end">'
+            +(isTemp?'<span style="font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px;background:'+C.amber+';color:white">仮</span>':'')
+            +'<input class="pl-temp-inp" data-key="'+esc(row.key)+'" type="number" value="'+(tmp!=null?tmp:'')+'" placeholder="仮入力（円）" style="width:110px;padding:3px 7px;border-radius:6px;border:1.5px dashed '+C.amber+';font-size:12px;text-align:right;background:'+(isTemp?C.amberL:'white')+'"/>'
+            +'<span style="font-size:10px;color:'+C.textX+'">円</span>'
+          +'</div>'
+          :'<span style="font-size:12.5px;font-weight:'+(row.bold?700:500)+';color:'+(dispV<0?C.red:row.color)+'">'+(dispV===0?'—':(dispV<0?'▲':'')+Math.abs(dispV).toLocaleString()+'円')+'</span>'
+        )
+        +'</div>';
     }).join('');
+    // 仮入力した場合の参考純利益を計算
+    var tmpSg=0;tempKeys.forEach(function(k){var rv=getRaw(k);var tv=plTemp[k];tmpSg+=(rv!==0?rv:(tv!=null?tv:0));});
+    var tmpNet=getRaw('売上高')-(tmpSg);
+    var hasTempData=tempKeys.some(function(k){return getRaw(k)===0&&plTemp[k]!=null;});
     finHtml='<div>'
       +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px">'
-      +kTile('売上',fmtM(md.rev),C.teal)+kTile('販管費',fmtM(md.sg),C.amber)
-      +kTile('営業利益',fmtM(md.op),md.op>=0?C.green:C.red)
+      +kTile('売上',fmtM(md.rev),C.teal)+kTile('販管費',fmtM(md.sg||tmpSg),C.amber)
+      +kTile('営業利益',fmtM(md.op||(md.rev?md.rev-tmpSg:0)),(md.op||(md.rev-tmpSg))>=0?C.green:C.red)
       +kTile('経常利益',fmtM(md.eco),md.eco>=0?C.green:C.red)
       +kTile('純利益',fmtM(md.net),md.net>=0?C.green:C.red)
       +'</div>'
-      +card(slabel('📋','損益計算書 明細')+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px">'+dRows+'</div>')
+      +card(
+        slabel('📋','損益計算書 明細')
+        +(hasTempData?'<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:7px 12px;background:'+C.amberL+';border-radius:8px;border:1px solid '+C.amber+'44"><span style="font-size:10px;font-weight:800;padding:1px 7px;border-radius:8px;background:'+C.amber+';color:white">仮</span><span style="font-size:11px;color:'+C.textS+'">仮入力あり。CSV確定後は自動で上書きされます</span></div>':'')
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px">'+dRows+'</div>'
+        +'<div style="display:flex;justify-content:flex-end;margin-top:10px">'
+          +btnP('btn-save-pl-temp','💾 仮の数字を保存','font-size:11px;padding:6px 16px')
+        +'</div>'
+      )
       +'</div>';
   }
 
@@ -982,6 +1019,21 @@ function bindEvents(){
     gasPost({action:'save_finance_notes',data:S.finNotes});
     var btn=document.getElementById('btn-save-fin-memo');
     if(btn){btn.textContent='✅ 保存しました';setTimeout(function(){render();},1200);}
+  });
+
+  var bpt=document.getElementById('btn-save-pl-temp');
+  if(bpt)bpt.addEventListener('click',function(){
+    var note=Object.assign({},S.finNotes[S.selMonth]||{});
+    var pt=Object.assign({},note.pl_temp||{});
+    document.querySelectorAll('.pl-temp-inp').forEach(function(inp){
+      var key=inp.dataset.key,v=inp.value.trim();
+      pt[key]=v!==''?parseFloat(v):null;
+    });
+    note.pl_temp=pt;
+    S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;
+    gasPost({action:'save_finance_notes',data:S.finNotes});
+    bpt.textContent='✅ 保存しました';
+    setTimeout(function(){render();},1000);
   });
 
   var bbal=document.getElementById('btn-save-bal');

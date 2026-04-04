@@ -1261,11 +1261,30 @@ async function submitForm(){
 
   var m=S.selMonth,kpi=S.kpiData[m]||{},a=ans;
   var nl='\n';
+  // 財務タブと同じロジックで実効値を計算
+  var _note=S.finNotes[m]||{};
+  var _pt=_note.pl_temp||{};
+  function _getRaw(key){var d=S.raw[key];if(!d)return 0;var v=d[m];return(v!=null&&v!=='')?(+v)||0:0;}
+  function _getPt(key){var e=_pt[key];if(e==null)return null;if(typeof e==='object')return e;return{v:e,confirmed:false};}
+  function _effVal(key){var pt=_getPt(key);return(pt!=null&&pt.v!=null)?pt.v:_getRaw(key);}
+  var _sgKeys=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費'];
+  var _calcSg=0;_sgKeys.forEach(function(k){_calcSg+=_effVal(k);});
+  var _hasAnyItem=_sgKeys.some(function(k){return _effVal(k)!==0;});
+  var _effSg=_hasAnyItem?_calcSg:_getRaw('販売費及び一般管理費合計');
+  var _effRev=_effVal('売上高')||_getRaw('売上高');
+  var _md=getMonthData(m);
+  var _effOp=_md.op!==0?_md.op+(_effSg-_md.sg)*-1+(_effRev-_md.rev):_effRev-_effSg;
+  var _effEco=_md.eco!==0?_md.eco+(_effSg-_md.sg)*-1+(_effRev-_md.rev):_effOp;
+  var _specialPL=_md.net-_md.eco;
+  var _effNet=_effEco+_specialPL;
+
   var prompt='あなたは経営コンサルタントです。以下のデータをもとに、スタッフ全員が読みやすい月次経営報告書を日本語マークダウンで作成してください。'+nl+nl
     +'対象月: '+m+nl
-    +'売上高: '+fmtY((S.raw['売上高']&&S.raw['売上高'][m])||0)+nl
-    +'営業利益: '+fmtY((S.raw['営業利益']&&S.raw['営業利益'][m])||0)+nl
-    +'純利益: '+fmtY((S.raw['当期純利益']&&S.raw['当期純利益'][m])||0)+nl
+    +'売上高: '+fmtY(_effRev)+nl
+    +'販管費: '+fmtY(_effSg)+nl
+    +'営業利益: '+fmtY(_effOp)+nl
+    +'経常利益: '+fmtY(_effEco)+nl
+    +'純利益: '+fmtY(_effNet)+nl
     +'月初会員: '+fmtN(kpi.members_start,'名')+' 月末会員: '+fmtN(kpi.members_end,'名')+nl
     +'入会: +'+fmtN(kpi.new_members,'名')+' 退会: -'+fmtN(kpi.left_members,'名')+nl
     +'ハイライト: '+(kpi.highlights||'なし')+nl

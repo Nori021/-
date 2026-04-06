@@ -1092,7 +1092,11 @@ function buildBlockPuzzle(active, totalRev, totalSg){
       },0);
     },0);
   }
-  var uriage  = totalRev;
+  var uriage  = active.reduce(function(s,dd){
+    var d=S.raw['売上高合計']||S.raw['売上高'];
+    if(!d)return s;
+    var v=d[dd.month];return s+((v!=null&&v!=='')?+v:0);
+  },0)||totalRev;
   var hendou  = sumRaw(['水道光熱費','業務委託料','広告宣伝費','接待交際費','旅費交通費','荷造運賃']);
   var jinken  = sumRaw(['役員報酬','給料賃金','法定福利費','福利厚生費','研修採用費']);
   var sonota  = sumRaw(['備品・消耗品費','支払手数料','支払報酬','修繕費','会議費','新聞図書費','諸会費','車両費','雑費']);

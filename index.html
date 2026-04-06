@@ -1160,6 +1160,11 @@ function buildBlockPuzzle(active, totalRev, totalSg){
 }
 
 
+function render(){
+  var content=S.view==='trend'?buildTrend():buildMonth();
+  document.getElementById('app').innerHTML=buildHeader()+'<main style="max-width:1160px;margin:0 auto;padding:22px 18px">'+content+'</main>';
+  bindEvents();
+}
 function goMonth(m){S.view=m;S.selMonth=m;S.sec='finance';S.repMode='view';render();}
 
 function bindEvents(){

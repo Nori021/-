@@ -70,7 +70,7 @@ var S={
   kpiData:{},reports:{},finNotes:{},kpiEditMode:null,
   kpiMsg:'',kpiLoading:false,
   selMonth:'5月',view:'trend',sec:'finance',repMode:'view',
-  draft:'',iStep:0,iAns:{},formAnswers:{},iInput:'',genLoading:false,genResult:'',trendTab:'pl',finEditPl:null,
+  draft:'',iStep:0,iAns:{},formAnswers:{},iInput:'',genLoading:false,genResult:'',trendTab:'pl',finEditPl:null,blockMode:'ytd',bsData:{},bsName:'残高試算表をアップロード',
   showSettings:false,
   gasUrl:'https://script.google.com/macros/s/AKfycbwubL_JEwjoUW_pQqlZQj6gHlTZGgetGvgOkAzeqyJH9HtMC1aHXFTYZBJhSpU6nTls/exec',adminKey:'Takabashira2024',
   gasConnected:true,gasStatus:'',gasTesting:false,dbLoading:false,
@@ -268,6 +268,9 @@ function buildHeader(){
     +'<div id="csv-drop" style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;border:1.5px dashed '+C.border+';cursor:pointer;flex-shrink:0">'
     +'<input id="csv-input" type="file" accept=".csv" style="display:none"><span style="font-size:13px">📂</span>'
     +'<div><div style="font-size:10px;font-weight:700;color:'+C.teal+'">損益CSV</div><div style="font-size:9px;color:'+C.textX+';max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(S.csvName)+'</div></div></div>'
+    +'<div id="bs-drop" style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;border:1.5px dashed '+C.border+';cursor:pointer;flex-shrink:0">'
+    +'<input id="bs-input" type="file" accept=".csv" style="display:none"><span style="font-size:13px">📋</span>'
+    +'<div><div style="font-size:10px;font-weight:700;color:'+C.purple+'">残高試算表</div><div style="font-size:9px;color:'+C.textX+';max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(S.bsName)+'</div></div></div>'
 
     +(S.kpiLoading?'<div style="display:flex;align-items:center;gap:6px">'+dots()+'<span style="font-size:11px;color:'+C.teal+'">'+esc(S.kpiMsg)+'</span></div>':S.kpiMsg?'<div style="font-size:11px;color:'+(S.kpiMsg.startsWith('⚠️')?C.red:C.green)+'">'+esc(S.kpiMsg)+'</div>':'')
     +'<div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0">'+gasBar
@@ -537,8 +540,8 @@ function buildTrend(){
   // ── タブUI ──────────────────────────────────────────────
   var tTab=S.trendTab||'pl';
   var tabBar='<div style="display:flex;gap:3px;margin-bottom:16px;background:'+C.white+';border-radius:11px;padding:4px;border:1px solid '+C.border+';width:fit-content">'
-    +['pl','kpi'].map(function(id){
-      var lbl=id==='pl'?'📊 損益グラフ':'👥 KPIグラフ';
+    +['pl','kpi','block'].map(function(id){
+      var lbl=id==='pl'?'📊 損益グラフ':id==='kpi'?'👥 KPIグラフ':'💰 財務ビジュアル';
       var isAct=tTab===id;
       return '<button data-ttab="'+id+'" style="padding:7px 20px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:'+(isAct?'linear-gradient(135deg,'+C.teal+','+C.blue+')':C.surf)+';color:'+(isAct?C.white:C.textS)+'">'+lbl+'</button>';
     }).join('')
@@ -562,7 +565,8 @@ function buildTrend(){
       +tabBar
       +(tTab==='pl'
         ?card(mainChart)+'<div style="margin-top:14px">'+card(balChart)+'</div>'+(salesChart?'<div style="margin-top:14px">'+salesChart+'</div>':'')
-        :kpiCharts)
+        :tTab==='kpi'?kpiCharts
+        :buildBlockPuzzle(active,totalRev,totalSg))
     +'</div>'
     +expHtml
     +cardNP(slabel('📋','月次損益サマリー（クリックで詳細へ）')
@@ -934,7 +938,7 @@ function buildMonth(){
     +'<div style="display:flex;gap:7px">'+(S.repMode==='view'?btnS('btn-rep-upload','📁 アップロード','font-size:12px')+(rep.text?btnS('btn-rep-edit','✏️ 内容を修正','font-size:12px')+btnS('btn-rep-recreate','🔄 AIで再作成','font-size:12px')+btnS('btn-rep-delete','🗑️ 削除','font-size:12px;color:'+C.red+';border-color:'+C.red):btnP('btn-rep-create','✨ AIで作成')):btnS('btn-rep-close','✕ 閉じる','font-size:12px'))+'</div></div>'+repBody
   );
 
-  var secTabs=[['finance','📉 財務'],['kpi','📋 KPI'],['report','📝 経営報告書']].map(function(pair){
+  var secTabs=[['finance','📉 財務'],['bs','📊 B/S'],['kpi','📋 KPI'],['report','📝 経営報告書']].map(function(pair){
     var id=pair[0],label=pair[1],active=S.sec===id;
     return'<button data-sec="'+id+'" style="padding:6px 16px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:'+(active?'linear-gradient(135deg,'+C.teal+','+C.blue+')':C.white)+';color:'+(active?C.white:C.textS)+'">'+label+'</button>';
   }).join('');
@@ -946,9 +950,289 @@ function buildMonth(){
     +(S.kpiData[S.selMonth]?badge('KPI取込済',C.indigo):'')+(rep.text?badge('報告書あり',C.green):'')+'</div>'
     +'<div style="display:flex;gap:7px">'+(ai>0?btnS('btn-prev','← '+FM[ai-1],'font-size:12px'):'')+(ai<11?btnS('btn-next',FM[ai+1]+' →','font-size:12px'):'')+'</div></div>'
     +'<div style="display:flex;gap:3px;margin-bottom:16px;background:'+C.white+';border-radius:11px;padding:4px;border:1px solid '+C.border+';width:fit-content">'+secTabs+'</div>'
-    +(S.sec==='finance'?finHtml+noteHtml+memoHtml:'')
+    +(S.sec==='finance'?finHtml+noteHtml+memoHtml:'')+(S.sec==='bs'?buildBsTab():'')
     +(S.sec==='kpi'?buildKpiTab():'')
     +(S.sec==='report'?repHtml:'')
+    +'</div>';
+}
+
+function parseBsCSV(text){
+  if(!text||!text.trim())return{};
+  var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
+  var data={};
+  lines.forEach(function(line){
+    var cs;
+    try{
+      var re=/"(?:[^"]|"")*"|[^,]*/g;
+      cs=(line.match(re)||[]).map(function(s){return s.replace(/^"|"$/g,'').replace(/""/g,'"');});
+    }catch(e){cs=line.split(',');}
+    var label=cs[0]?cs[0]:(cs[1]||'');
+    if(!label)return;
+    var raw=(cs[6]||'').replace(/,/g,'');
+    var val=(raw!==''&&!isNaN(parseInt(raw)))?parseInt(raw):null;
+    if(val!==null&&!data[label])data[label]=val;
+  });
+  return data;
+}
+
+function buildBsTab(){
+  var bs=S.bsData||{};
+  var hasData=Object.keys(bs).length>0;
+  if(!hasData){
+    return card('<div style="text-align:center;padding:40px 20px">'
+      +'<div style="font-size:36px;margin-bottom:12px">📋</div>'
+      +'<div style="font-size:14px;font-weight:700;color:'+C.textM+';margin-bottom:8px">残高試算表がありません</div>'
+      +'<div style="font-size:12px;color:'+C.textS+';margin-bottom:20px">マネーフォワードから貸借対照表CSVをダウンロードして<br>ヘッダーの「残高試算表」からアップロードしてください</div>'
+      +'</div>');
+  }
+  function fmt(v){if(v==null)return'—';return(v<0?'▲':'')+Math.abs(Math.round(v/10000)).toLocaleString()+'万';}
+  function colV(v){return v==null?C.textX:v<0?C.red:C.text;}
+
+  var cash=bs['現金及び預金合計'];
+  var curAsset=bs['流動資産合計'];
+  var fixAsset=bs['固定資産合計'];
+  var totalAsset=bs['資産の部合計'];
+  var curLiab=bs['流動負債合計'];
+  var fixLiab=bs['固定負債合計'];
+  var totalLiab=bs['負債の部合計'];
+  var equity=bs['純資産の部合計'];
+  var totalLE=bs['負債・純資産の部合計'];
+  var currentRatio=(curLiab&&curLiab>0&&curAsset)?(curAsset/curLiab*100):null;
+  var equityRatio=(totalLE&&totalLE>0&&equity)?(equity/totalLE*100):null;
+
+  var tiles='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">'
+    +kTile('現金・預金',fmt(cash),C.blue)
+    +kTile('流動資産',fmt(curAsset),C.teal)
+    +kTile('固定資産',fmt(fixAsset),C.indigo)
+    +kTile('資産合計',fmt(totalAsset),C.teal)
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">'
+    +kTile('流動負債',fmt(curLiab),C.amber)
+    +kTile('固定負債',fmt(fixLiab),C.orange)
+    +kTile('負債合計',fmt(totalLiab),C.red)
+    +kTile('純資産',fmt(equity),equity>=0?C.green:C.red)
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px">'
+    +kTile('流動比率',currentRatio!=null?Math.round(currentRatio)+'%':'—',currentRatio>=150?C.green:currentRatio>=100?C.amber:C.red,'流動資産÷流動負債（150%以上が目安）')
+    +kTile('自己資本比率',equityRatio!=null?Math.round(equityRatio*10)/10+'%':'—',equityRatio>=30?C.green:equityRatio>=10?C.amber:C.red,'純資産÷総資産（30%以上が目安）')
+    +'</div>';
+
+  function makeRows(rows){
+    return rows.map(function(row){
+      if(!row)return'<div style="height:1px;background:'+C.border+';margin:3px 0"></div>';
+      var v=row[1];
+      return'<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 10px;border-radius:7px;background:'+(row[2]?row[3]+'12':'transparent')+'">'
+        +'<span style="font-size:12px;color:'+(row[2]?C.textM:C.textS)+';font-weight:'+(row[2]?600:400)+'">'+esc(row[0])+'</span>'
+        +'<span style="font-size:12px;font-weight:'+(row[2]?700:500)+';color:'+colV(v)+'">'+(v==null?'—':(v<0?'▲':'')+Math.abs(v).toLocaleString()+'円')+'</span>'
+        +'</div>';
+    }).join('');
+  }
+
+  var assetRows=[
+    ['現金及び預金合計',cash,false,C.blue],
+    ['売上債権合計',bs['売上債権合計'],false,C.textS],
+    ['その他流動資産合計',bs['その他流動資産合計'],false,C.textS],
+    ['流動資産合計',curAsset,true,C.teal],null,
+    ['有形固定資産合計',bs['有形固定資産合計'],false,C.textS],
+    ['無形固定資産合計',bs['無形固定資産合計'],false,C.textS],
+    ['投資その他の資産合計',bs['投資その他の資産合計'],false,C.textS],
+    ['固定資産合計',fixAsset,true,C.indigo],null,
+    ['資産の部合計',totalAsset,true,C.teal],
+  ];
+  var liabRows=[
+    ['流動負債合計',curLiab,true,C.amber],null,
+    ['固定負債合計',fixLiab,true,C.orange],null,
+    ['負債の部合計',totalLiab,true,C.red],null,
+    ['資本金合計',bs['資本金合計'],false,C.textS],
+    ['利益剰余金合計',bs['利益剰余金合計'],false,C.textS],
+    ['純資産の部合計',equity,true,equity>=0?C.green:C.red],null,
+    ['負債・純資産の部合計',totalLE,true,C.teal],
+  ];
+
+  var detail='<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">'
+    +card(slabel('🏦','資産の部')+'<div>'+makeRows(assetRows)+'</div>')
+    +card(slabel('💳','負債・純資産の部')+'<div>'+makeRows(liabRows)+'</div>')
+    +'</div>';
+
+  var spotItems=[
+    {label:'現金',key:'現金'},
+    {label:'普通預金',key:'普通預金'},
+    {label:'売掛金',key:'売掛金'},
+    {label:'前払金',key:'前払金'},
+    {label:'未払金',key:'未払金'},
+    {label:'未払費用',key:'未払費用'},
+    {label:'前受金',key:'前受金'},
+    {label:'預り金',key:'預り金'},
+    {label:'長期借入金',key:'長期借入金'},
+    {label:'繰越利益剰余金',key:'繰越利益剰余金'},
+  ].filter(function(d){return bs[d.key]!=null;});
+
+  var spotRows=spotItems.map(function(d){
+    var v=bs[d.key];
+    return'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 12px;border-radius:8px;background:'+C.surf+';border:1px solid '+C.border+'">'
+      +'<span style="font-size:12px;color:'+C.textM+';font-weight:500">'+esc(d.label)+'</span>'
+      +'<span style="font-size:13px;font-weight:700;color:'+colV(v)+'">'+(v<0?'▲':'')+Math.abs(v).toLocaleString()+'円</span>'
+      +'</div>';
+  }).join('');
+  var spotCard=spotRows?card(slabel('📌','主要科目残高')+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'+spotRows+'</div>'):'';
+
+  return '<div>'+tiles+detail+spotCard+'</div>';
+}
+
+
+function buildBlockPuzzle(active, totalRev, totalSg){
+  if(!active||!active.length||!totalRev){
+    return '<div style="text-align:center;padding:40px;color:'+C.textX+';font-size:13px">損益CSVをアップロードすると財務ビジュアルが表示されます</div>';
+  }
+
+  // 全期間合計で構成
+  var totNet=active.reduce(function(s,d){return s+d.net;},0);
+  var totOp=active.reduce(function(s,d){return s+d.op;},0);
+  var totGp=active.reduce(function(s,d){return s+(d.rev);},0); // 売上総利益=売上高（原価0）
+
+  // 費用項目合計
+  var costKeys=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費'];
+  var costTotals={};
+  var grandCost=0;
+  costKeys.forEach(function(k){
+    var t=active.reduce(function(s,d){return s+(S.raw[k]&&S.raw[k][d.month]?Number(S.raw[k][d.month]):0);},0);
+    costTotals[k]=t;
+    grandCost+=t;
+  });
+
+  // ブロックの高さ計算（売上高を基準100%）
+  var BASE=200; // px
+  var scale=function(v){return Math.max(0,Math.round(Math.abs(v)/totalRev*BASE));};
+
+  // 色定義
+  var colors={
+    rev:'#0891b2', gp:'#059669', sg:'#d97706', op:'#dc2626', profit:'#059669',
+    costs:['#185FA5','#3B6D11','#854F0B','#A32D2D','#3C3489','#0F6E56','#993C1D','#993556','#5F5E5A']
+  };
+
+  function fmtV(v){
+    if(v==null)return'—';
+    var m=Math.round(Math.abs(v)/10000);
+    return(v<0?'▲':'')+m.toLocaleString()+'万';
+  }
+  function pctStr(v,base){
+    if(!base)return'';
+    return Math.round(Math.abs(v)/base*100)+'%';
+  }
+
+  var isProfit=totOp>=0;
+
+  // ── 月別切り替えセレクト ──────────────────────────────
+  var monthOpts=active.map(function(d){
+    return '<option value="'+d.month+'">'+d.month+'</option>';
+  }).join('');
+
+  // ── 年間合計ビジュアル ────────────────────────────────
+  // 大きなブロック図：売上 vs 費用構成 vs 利益
+  var revH=BASE;
+  var costBlocks=costKeys.map(function(k,idx){
+    var v=costTotals[k];
+    if(!v)return'';
+    var h=scale(v);
+    var bg=colors.costs[idx%colors.costs.length];
+    return '<div style="width:100%;height:'+h+'px;background:'+bg+';display:flex;align-items:center;justify-content:space-between;padding:0 8px;box-sizing:border-box;min-height:16px;">'
+      +'<span style="font-size:10px;color:rgba(255,255,255,0.9);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(k)+'</span>'
+      +'<span style="font-size:10px;color:rgba(255,255,255,0.9);font-weight:500;flex-shrink:0;margin-left:4px">'+fmtV(v)+'</span>'
+      +'</div>';
+  }).join('');
+
+  var opH=scale(Math.abs(totOp));
+  var otherCostH=Math.max(0,revH-opH); // 費用部分の高さ
+
+  // 年間サマリーカード
+  var summaryCards='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">'
+    +'<div style="background:'+C.tealL+';border:1px solid '+C.teal+'44;border-radius:10px;padding:12px 14px">'
+      +'<div style="font-size:10px;color:'+C.teal+';font-weight:700;margin-bottom:4px">年間売上高</div>'
+      +'<div style="font-size:20px;font-weight:800;color:'+C.teal+'">'+fmtV(totalRev)+'</div>'
+    +'</div>'
+    +'<div style="background:'+C.amberL+';border:1px solid '+C.amber+'44;border-radius:10px;padding:12px 14px">'
+      +'<div style="font-size:10px;color:'+C.amber+';font-weight:700;margin-bottom:4px">年間販管費</div>'
+      +'<div style="font-size:20px;font-weight:800;color:'+C.amber+'">'+fmtV(totalSg)+'</div>'
+      +'<div style="font-size:10px;color:'+C.amber+';margin-top:2px">売上比 '+pctStr(totalSg,totalRev)+'</div>'
+    +'</div>'
+    +'<div style="background:'+(isProfit?C.greenL:C.redL)+';border:1px solid '+(isProfit?C.green:C.red)+'44;border-radius:10px;padding:12px 14px">'
+      +'<div style="font-size:10px;color:'+(isProfit?C.green:C.red)+';font-weight:700;margin-bottom:4px">年間営業利益</div>'
+      +'<div style="font-size:20px;font-weight:800;color:'+(isProfit?C.green:C.red)+'">'+fmtV(totOp)+'</div>'
+      +'<div style="font-size:10px;color:'+(isProfit?C.green:C.red)+';margin-top:2px">売上比 '+pctStr(totOp,totalRev)+'</div>'
+    +'</div>'
+    +'<div style="background:'+(totNet>=0?C.greenL:C.redL)+';border:1px solid '+(totNet>=0?C.green:C.red)+'44;border-radius:10px;padding:12px 14px">'
+      +'<div style="font-size:10px;color:'+(totNet>=0?C.green:C.red)+';font-weight:700;margin-bottom:4px">年間純利益</div>'
+      +'<div style="font-size:20px;font-weight:800;color:'+(totNet>=0?C.green:C.red)+'">'+fmtV(totNet)+'</div>'
+    +'</div>'
+    +'</div>';
+
+  // ブロック図本体
+  var blockViz='<div style="display:flex;gap:20px;align-items:flex-start;margin-bottom:20px">'
+
+    // 売上高ブロック
+    +'<div style="display:flex;flex-direction:column;align-items:center;min-width:100px">'
+      +'<div style="font-size:11px;color:'+C.textS+';margin-bottom:6px;font-weight:600">売上高</div>'
+      +'<div style="width:100px;height:'+BASE+'px;background:'+C.teal+';border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative;">'
+        +'<span style="font-size:13px;font-weight:800;color:white;text-align:center">'+fmtV(totalRev)+'</span>'
+      +'</div>'
+      +'<div style="font-size:10px;color:'+C.textX+';margin-top:6px">100%</div>'
+    +'</div>'
+
+    // 矢印
+    +'<div style="display:flex;align-items:center;padding-top:30px;font-size:20px;color:'+C.textX+'">＝</div>'
+
+    // 費用内訳ブロック
+    +'<div style="flex:1;display:flex;flex-direction:column;align-items:center">'
+      +'<div style="font-size:11px;color:'+C.textS+';margin-bottom:6px;font-weight:600">販管費の内訳</div>'
+      +'<div style="width:100%;border-radius:8px;overflow:hidden;display:flex;flex-direction:column">'
+        +costBlocks
+      +'</div>'
+      +'<div style="font-size:10px;color:'+C.textX+';margin-top:6px">'+fmtV(totalSg)+' ('+pctStr(totalSg,totalRev)+')</div>'
+    +'</div>'
+
+    // ＋利益ブロック
+    +'<div style="display:flex;align-items:center;padding-top:30px;font-size:20px;color:'+C.textX+'">＋</div>'
+
+    // 利益ブロック
+    +'<div style="display:flex;flex-direction:column;align-items:center;min-width:100px">'
+      +'<div style="font-size:11px;color:'+C.textS+';margin-bottom:6px;font-weight:600">営業利益</div>'
+      +'<div style="width:100px;height:'+Math.max(20,opH)+'px;background:'+(isProfit?C.green:C.red)+';border-radius:8px;display:flex;align-items:center;justify-content:center;">'
+        +'<span style="font-size:12px;font-weight:800;color:white;text-align:center">'+fmtV(totOp)+'</span>'
+      +'</div>'
+      +'<div style="font-size:10px;color:'+C.textX+';margin-top:6px">'+pctStr(totOp,totalRev)+'</div>'
+    +'</div>'
+
+    +'</div>';
+
+  // 費用ランキング
+  var costRanking=costKeys
+    .filter(function(k){return costTotals[k]>0;})
+    .sort(function(a,b){return costTotals[b]-costTotals[a];})
+    .map(function(k,idx){
+      var v=costTotals[k];
+      var barW=Math.round(v/grandCost*100);
+      var bg=colors.costs[costKeys.indexOf(k)%colors.costs.length];
+      return '<div style="margin-bottom:8px">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">'
+          +'<span style="font-size:12px;color:'+C.textM+';font-weight:500">'+esc(k)+'</span>'
+          +'<span style="font-size:12px;color:'+C.textM+'">'+fmtV(v)+'<span style="color:'+C.textX+';font-size:10px;margin-left:4px">('+pctStr(v,grandCost)+')</span></span>'
+        +'</div>'
+        +'<div style="height:8px;background:'+C.surf+';border-radius:4px;overflow:hidden">'
+          +'<div style="height:100%;width:'+barW+'%;background:'+bg+';border-radius:4px;"></div>'
+        +'</div>'
+        +'</div>';
+    }).join('');
+
+  return '<div>'
+    +summaryCards
+    +card(
+      slabel('💰','財務構造ビジュアル（年間累計）')
+      +blockViz
+    )
+    +card(
+      slabel('📊','販管費ランキング（年間）')
+      +'<div style="margin-top:8px">'+costRanking+'</div>'
+    )
     +'</div>';
 }
 
@@ -961,9 +1245,13 @@ function goMonth(m){S.view=m;S.selMonth=m;S.sec='finance';S.repMode='view';rende
 
 function bindEvents(){
   document.querySelectorAll('[data-ttab]').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();S.trendTab=b.dataset.ttab;render();});});
+  document.querySelectorAll('[data-bmode]').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();S.blockMode=b.dataset.bmode;render();});});
   document.querySelectorAll('.mtab').forEach(function(b){b.addEventListener('click',function(){var v=b.dataset.view||b.dataset.month;S.view=v;if(v!=='trend')S.selMonth=v;S.sec='finance';S.repMode='view';render();});});
   document.querySelectorAll('.row[data-month]').forEach(function(r){r.addEventListener('click',function(){goMonth(r.dataset.month);});});
   document.querySelectorAll('[data-sec]').forEach(function(b){b.addEventListener('click',function(){S.sec=b.dataset.sec;render();});});
+  var bd=document.getElementById('bs-drop'),bi=document.getElementById('bs-input');
+  if(bd){bd.addEventListener('click',function(){bi.click();});bd.addEventListener('dragover',function(e){e.preventDefault();});bd.addEventListener('drop',function(e){e.preventDefault();handleBsCsv(e.dataTransfer.files[0]);});}
+  if(bi)bi.addEventListener('change',function(e){handleBsCsv(e.target.files[0]);});
   var cd=document.getElementById('csv-drop'),ci=document.getElementById('csv-input');
   if(cd){cd.addEventListener('click',function(){ci.click();});cd.addEventListener('dragover',function(e){e.preventDefault();});cd.addEventListener('drop',function(e){e.preventDefault();handleCsv(e.dataTransfer.files[0]);});}
   if(ci)ci.addEventListener('change',function(e){handleCsv(e.target.files[0]);});
@@ -1152,6 +1440,18 @@ async function extractDocxText(ab){
     .replace(/[ \t]+/g,' ')
     .split('\n').map(function(l){return l.trim();}).filter(function(l){return l;}).join('\n')
     .slice(0,6000);
+}
+
+async function handleBsCsv(file){
+  if(!file||!file.name.endsWith('.csv'))return;
+  S.bsName=file.name;
+  var ab=await file.arrayBuffer();
+  var text;
+  try{text=new TextDecoder('cp932').decode(new Uint8Array(ab));}
+  catch(e){try{text=new TextDecoder('shift-jis').decode(new Uint8Array(ab));}catch(e2){text=new TextDecoder('utf-8').decode(new Uint8Array(ab));}}
+  S.bsData=parseBsCSV(text);
+  S.sec='bs';
+  render();
 }
 
 async function handleCsv(file){

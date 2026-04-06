@@ -541,7 +541,7 @@ function buildTrend(){
   var tTab=S.trendTab||'pl';
   var tabBar='<div style="display:flex;gap:3px;margin-bottom:16px;background:'+C.white+';border-radius:11px;padding:4px;border:1px solid '+C.border+';width:fit-content">'
     +['pl','kpi','block'].map(function(id){
-      var lbl=id==='pl'?'📊 損益グラフ':id==='kpi'?'👥 KPIグラフ':'💰 財務ビジュアル';
+      var lbl=id==='pl'?'📊 損益グラフ':id==='kpi'?'👥 KPIグラフ':'💰 どんぶり図';
       var isAct=tTab===id;
       return '<button data-ttab="'+id+'" style="padding:7px 20px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:'+(isAct?'linear-gradient(135deg,'+C.teal+','+C.blue+')':C.surf)+';color:'+(isAct?C.white:C.textS)+'">'+lbl+'</button>';
     }).join('')
@@ -1084,163 +1084,78 @@ function buildBlockPuzzle(active, totalRev, totalSg){
   if(!active||!active.length||!totalRev){
     return '<div style="text-align:center;padding:40px;color:'+C.textX+';font-size:13px">損益CSVをアップロードすると財務ビジュアルが表示されます</div>';
   }
-
-  // 全期間合計で構成
-  var totNet=active.reduce(function(s,d){return s+d.net;},0);
-  var totOp=active.reduce(function(s,d){return s+d.op;},0);
-  var totGp=active.reduce(function(s,d){return s+(d.rev);},0); // 売上総利益=売上高（原価0）
-
-  // 費用項目合計
-  var costKeys=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費'];
-  var costTotals={};
-  var grandCost=0;
-  costKeys.forEach(function(k){
-    var t=active.reduce(function(s,d){return s+(S.raw[k]&&S.raw[k][d.month]?Number(S.raw[k][d.month]):0);},0);
-    costTotals[k]=t;
-    grandCost+=t;
-  });
-
-  // ブロックの高さ計算（売上高を基準100%）
-  var BASE=200; // px
-  var scale=function(v){return Math.max(0,Math.round(Math.abs(v)/totalRev*BASE));};
-
-  // 色定義
-  var colors={
-    rev:'#0891b2', gp:'#059669', sg:'#d97706', op:'#dc2626', profit:'#059669',
-    costs:['#185FA5','#3B6D11','#854F0B','#A32D2D','#3C3489','#0F6E56','#993C1D','#993556','#5F5E5A']
-  };
-
-  function fmtV(v){
-    if(v==null)return'—';
-    var m=Math.round(Math.abs(v)/10000);
-    return(v<0?'▲':'')+m.toLocaleString()+'万';
+  function sumRaw(keys){
+    return keys.reduce(function(s,k){
+      var d=S.raw[k];if(!d)return s;
+      return s+active.reduce(function(ss,dd){
+        var v=d[dd.month];return ss+((v!=null&&v!=='')?+v:0);
+      },0);
+    },0);
   }
-  function pctStr(v,base){
-    if(!base)return'';
-    return Math.round(Math.abs(v)/base*100)+'%';
-  }
+  var uriage  = totalRev;
+  var hendou  = sumRaw(['水道光熱費','業務委託料','広告宣伝費','接待交際費','旅費交通費','荷造運賃']);
+  var jinken  = sumRaw(['役員報酬','給料賃金','法定福利費','福利厚生費','研修採用費']);
+  var sonota  = sumRaw(['備品・消耗品費','支払手数料','支払報酬','修繕費','会議費','新聞図書費','諸会費','車両費','雑費']);
+  var kotei_h = sumRaw(['地代家賃','賃借料','リース代','通信費','保険料','租税公課']);
+  var arari    = uriage - hendou;
+  var kotei_sum= kotei_h + sonota + jinken;
+  var rieki    = arari - kotei_sum;
 
-  var isProfit=totOp>=0;
-
-  // ── 月別切り替えセレクト ──────────────────────────────
-  var monthOpts=active.map(function(d){
-    return '<option value="'+d.month+'">'+d.month+'</option>';
-  }).join('');
-
-  // ── 年間合計ビジュアル ────────────────────────────────
-  // 大きなブロック図：売上 vs 費用構成 vs 利益
-  var revH=BASE;
-  var costBlocks=costKeys.map(function(k,idx){
-    var v=costTotals[k];
-    if(!v)return'';
-    var h=scale(v);
-    var bg=colors.costs[idx%colors.costs.length];
-    return '<div style="width:100%;height:'+h+'px;background:'+bg+';display:flex;align-items:center;justify-content:space-between;padding:0 8px;box-sizing:border-box;min-height:16px;">'
-      +'<span style="font-size:10px;color:rgba(255,255,255,0.9);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(k)+'</span>'
-      +'<span style="font-size:10px;color:rgba(255,255,255,0.9);font-weight:500;flex-shrink:0;margin-left:4px">'+fmtV(v)+'</span>'
+  function fmt(n){return Math.round(Math.abs(n)/10000).toLocaleString()+'万';}
+  function pc(v){return Math.round(Math.abs(v)/uriage*100)+'%';}
+  function pw(val){return Math.max(0,val)/uriage*100;}
+  function blk(label,sub,val,wPct,style){
+    return '<div style="width:'+wPct.toFixed(2)+'%;flex-shrink:0;display:flex;flex-direction:column;justify-content:center;align-items:center;border-radius:4px;padding:6px 4px;overflow:hidden;box-sizing:border-box;'+style+'">'
+      +'<div style="font-size:11px;font-weight:600;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">'+label+'</div>'
+      +(sub?'<div style="font-size:9px;text-align:center;opacity:0.7">'+sub+'</div>':'')
+      +'<div style="font-size:11px;font-weight:500;text-align:center;margin-top:3px;white-space:nowrap">'+(val<0?'▲':'')+fmt(val)+'</div>'
+      +'<div style="font-size:9px;text-align:center;opacity:0.65">'+pc(val)+'</div>'
       +'</div>';
-  }).join('');
+  }
+  var axStyle='width:64px;flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;padding-right:12px;font-size:13px;font-weight:600;color:'+C.textS+';border-right:2px solid '+C.border+';';
+  var riekiHtml='';
+  if(rieki>0){
+    riekiHtml='<div style="width:4px;flex-shrink:0;"></div>'+blk('営業利益','',rieki,pw(rieki),'background:#e8f5ee;color:#1a5c38;border:1px solid #7cc49a;');
+  }else if(rieki<0){
+    riekiHtml='<div style="width:4px;flex-shrink:0;"></div>'+blk('営業赤字','',rieki,pw(Math.abs(rieki)),'background:#fdeaea;color:#7a1212;border:1px solid #e08080;');
+  }
+  var rColor=rieki>=0?C.green:C.red;
+  var rSign=rieki>=0?'+':'▲';
 
-  var opH=scale(Math.abs(totOp));
-  var otherCostH=Math.max(0,revH-opH); // 費用部分の高さ
-
-  // 年間サマリーカード
-  var summaryCards='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">'
-    +'<div style="background:'+C.tealL+';border:1px solid '+C.teal+'44;border-radius:10px;padding:12px 14px">'
-      +'<div style="font-size:10px;color:'+C.teal+';font-weight:700;margin-bottom:4px">年間売上高</div>'
-      +'<div style="font-size:20px;font-weight:800;color:'+C.teal+'">'+fmtV(totalRev)+'</div>'
-    +'</div>'
-    +'<div style="background:'+C.amberL+';border:1px solid '+C.amber+'44;border-radius:10px;padding:12px 14px">'
-      +'<div style="font-size:10px;color:'+C.amber+';font-weight:700;margin-bottom:4px">年間販管費</div>'
-      +'<div style="font-size:20px;font-weight:800;color:'+C.amber+'">'+fmtV(totalSg)+'</div>'
-      +'<div style="font-size:10px;color:'+C.amber+';margin-top:2px">売上比 '+pctStr(totalSg,totalRev)+'</div>'
-    +'</div>'
-    +'<div style="background:'+(isProfit?C.greenL:C.redL)+';border:1px solid '+(isProfit?C.green:C.red)+'44;border-radius:10px;padding:12px 14px">'
-      +'<div style="font-size:10px;color:'+(isProfit?C.green:C.red)+';font-weight:700;margin-bottom:4px">年間営業利益</div>'
-      +'<div style="font-size:20px;font-weight:800;color:'+(isProfit?C.green:C.red)+'">'+fmtV(totOp)+'</div>'
-      +'<div style="font-size:10px;color:'+(isProfit?C.green:C.red)+';margin-top:2px">売上比 '+pctStr(totOp,totalRev)+'</div>'
-    +'</div>'
-    +'<div style="background:'+(totNet>=0?C.greenL:C.redL)+';border:1px solid '+(totNet>=0?C.green:C.red)+'44;border-radius:10px;padding:12px 14px">'
-      +'<div style="font-size:10px;color:'+(totNet>=0?C.green:C.red)+';font-weight:700;margin-bottom:4px">年間純利益</div>'
-      +'<div style="font-size:20px;font-weight:800;color:'+(totNet>=0?C.green:C.red)+'">'+fmtV(totNet)+'</div>'
-    +'</div>'
+  var html=''
+    +'<div style="display:flex;align-items:stretch;margin-bottom:6px;min-height:56px;">'
+      +'<div style="'+axStyle+'">売上</div>'
+      +'<div style="flex:1;padding-left:10px;display:flex;align-items:stretch;">'
+        +blk('売上高','',uriage,100,'background:#e8f5ee;color:#1a5c38;border:1px solid #7cc49a;')
+      +'</div></div>'
+    +'<div style="display:flex;align-items:stretch;margin-bottom:6px;min-height:56px;">'
+      +'<div style="'+axStyle+'">変動</div>'
+      +'<div style="flex:1;padding-left:10px;display:flex;align-items:stretch;">'
+        +blk('変動費','',hendou,pw(hendou),'background:#fdeee8;color:#7a2e12;border:1px solid #e0856a;')
+        +(arari>0?'<div style="width:4px;flex-shrink:0;"></div>'+blk('粗利','Gross Profit',arari,pw(arari),'background:#fff;color:#3a2f80;border:1.5px dashed #7b6ed6;'):'')
+      +'</div></div>'
+    +'<div style="height:1px;background:'+C.border+';margin:4px 0 8px 74px;"></div>'
+    +'<div style="display:flex;align-items:stretch;min-height:56px;">'
+      +'<div style="'+axStyle+'">固定</div>'
+      +'<div style="flex:1;padding-left:10px;display:flex;align-items:stretch;">'
+        +'<div style="width:'+pw(hendou).toFixed(2)+'%;flex-shrink:0;"></div>'
+        +blk('固定(変動)','',kotei_h,pw(kotei_h),'background:#fef5e4;color:#6b3d08;border:1px solid #e0b86a;')
+        +'<div style="width:4px;flex-shrink:0;"></div>'
+        +blk('その他','',sonota,pw(sonota),'background:#f2f0eb;color:#444;border:1px solid #c0bdb5;')
+        +'<div style="width:4px;flex-shrink:0;"></div>'
+        +blk('人件費','Labour Cost',jinken,pw(jinken),'background:#eeedfb;color:#3a2f80;border:1px solid #9b94e0;')
+        +riekiHtml
+      +'</div></div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:1rem;padding-top:1rem;border-top:1px solid '+C.border+';padding-left:74px;font-size:12px;color:'+C.textS+'">'
+      +'<span>粗利率: <b style="color:'+C.teal+'">'+pc(arari)+'</b></span>'
+      +'<span>固定費合計: <b style="color:'+C.amber+'">'+fmt(kotei_sum)+'</b></span>'
+      +'<span>人件費比率: <b style="color:'+C.indigo+'">'+pc(jinken)+'</b></span>'
+      +'<span>営業利益: <b style="color:'+rColor+'">'+rSign+fmt(Math.abs(rieki))+'</b></span>'
     +'</div>';
-
-  // ブロック図本体
-  var blockViz='<div style="display:flex;gap:20px;align-items:flex-start;margin-bottom:20px">'
-
-    // 売上高ブロック
-    +'<div style="display:flex;flex-direction:column;align-items:center;min-width:100px">'
-      +'<div style="font-size:11px;color:'+C.textS+';margin-bottom:6px;font-weight:600">売上高</div>'
-      +'<div style="width:100px;height:'+BASE+'px;background:'+C.teal+';border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative;">'
-        +'<span style="font-size:13px;font-weight:800;color:white;text-align:center">'+fmtV(totalRev)+'</span>'
-      +'</div>'
-      +'<div style="font-size:10px;color:'+C.textX+';margin-top:6px">100%</div>'
-    +'</div>'
-
-    // 矢印
-    +'<div style="display:flex;align-items:center;padding-top:30px;font-size:20px;color:'+C.textX+'">＝</div>'
-
-    // 費用内訳ブロック
-    +'<div style="flex:1;display:flex;flex-direction:column;align-items:center">'
-      +'<div style="font-size:11px;color:'+C.textS+';margin-bottom:6px;font-weight:600">販管費の内訳</div>'
-      +'<div style="width:100%;border-radius:8px;overflow:hidden;display:flex;flex-direction:column">'
-        +costBlocks
-      +'</div>'
-      +'<div style="font-size:10px;color:'+C.textX+';margin-top:6px">'+fmtV(totalSg)+' ('+pctStr(totalSg,totalRev)+')</div>'
-    +'</div>'
-
-    // ＋利益ブロック
-    +'<div style="display:flex;align-items:center;padding-top:30px;font-size:20px;color:'+C.textX+'">＋</div>'
-
-    // 利益ブロック
-    +'<div style="display:flex;flex-direction:column;align-items:center;min-width:100px">'
-      +'<div style="font-size:11px;color:'+C.textS+';margin-bottom:6px;font-weight:600">営業利益</div>'
-      +'<div style="width:100px;height:'+Math.max(20,opH)+'px;background:'+(isProfit?C.green:C.red)+';border-radius:8px;display:flex;align-items:center;justify-content:center;">'
-        +'<span style="font-size:12px;font-weight:800;color:white;text-align:center">'+fmtV(totOp)+'</span>'
-      +'</div>'
-      +'<div style="font-size:10px;color:'+C.textX+';margin-top:6px">'+pctStr(totOp,totalRev)+'</div>'
-    +'</div>'
-
-    +'</div>';
-
-  // 費用ランキング
-  var costRanking=costKeys
-    .filter(function(k){return costTotals[k]>0;})
-    .sort(function(a,b){return costTotals[b]-costTotals[a];})
-    .map(function(k,idx){
-      var v=costTotals[k];
-      var barW=Math.round(v/grandCost*100);
-      var bg=colors.costs[costKeys.indexOf(k)%colors.costs.length];
-      return '<div style="margin-bottom:8px">'
-        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">'
-          +'<span style="font-size:12px;color:'+C.textM+';font-weight:500">'+esc(k)+'</span>'
-          +'<span style="font-size:12px;color:'+C.textM+'">'+fmtV(v)+'<span style="color:'+C.textX+';font-size:10px;margin-left:4px">('+pctStr(v,grandCost)+')</span></span>'
-        +'</div>'
-        +'<div style="height:8px;background:'+C.surf+';border-radius:4px;overflow:hidden">'
-          +'<div style="height:100%;width:'+barW+'%;background:'+bg+';border-radius:4px;"></div>'
-        +'</div>'
-        +'</div>';
-    }).join('');
-
-  return '<div>'
-    +summaryCards
-    +card(
-      slabel('💰','財務構造ビジュアル（年間累計）')
-      +blockViz
-    )
-    +card(
-      slabel('📊','販管費ランキング（年間）')
-      +'<div style="margin-top:8px">'+costRanking+'</div>'
-    )
-    +'</div>';
+  return card(html);
 }
 
-function render(){
-  var content=S.view==='trend'?buildTrend():buildMonth();
-  document.getElementById('app').innerHTML=buildHeader()+'<main style="max-width:1160px;margin:0 auto;padding:22px 18px">'+content+'</main>';
-  bindEvents();
-}
+
 function goMonth(m){S.view=m;S.selMonth=m;S.sec='finance';S.repMode='view';render();}
 
 function bindEvents(){

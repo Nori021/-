@@ -491,7 +491,7 @@ function buildTrend(){
   // 直近6ヶ月に絞る
   if(kpiActive.length>6)kpiActive=kpiActive.slice(-6);
   var kpiCharts='';
-  if(kpiActive.length>=2){
+  if(kpiActive.length>=1){
     // 会員数
     var maxMem=Math.max.apply(null,kpiActive.map(function(m){return S.kpiData[m].members_end||0;}));if(maxMem<=0)maxMem=1;
     var memBars=kpiActive.map(function(m){
@@ -521,7 +521,7 @@ function buildTrend(){
     // ARPU
     var arpuActive=kpiActive.filter(function(m){var k=S.kpiData[m];return (k.aqxia_arpu||0)+(k.air_arpu||0)>0;});
     var arpuChart='';
-    if(arpuActive.length>=2){
+    if(arpuActive.length>=1){
       var maxArpu=Math.max.apply(null,arpuActive.map(function(m){var k=S.kpiData[m];return Math.max(k.aqxia_arpu||0,k.air_arpu||0);}));if(maxArpu<=0)maxArpu=1;
       var arpuBars=arpuActive.map(function(m){
         var k=S.kpiData[m],aq=k.aqxia_arpu||0,ai=k.air_arpu||0;
@@ -545,7 +545,7 @@ function buildTrend(){
     // キャッシュレス率
     var clActive=kpiActive.filter(function(m){return S.kpiData[m].cashless_ratio!=null;});
     var clChart='';
-    if(clActive.length>=2){
+    if(clActive.length>=1){
       var clBars=clActive.map(function(m){
         var v=S.kpiData[m].cashless_ratio||0,ch=Math.max(4,Math.round(v/100*110));
         var col=v>=80?C.green:v>=60?C.teal:C.amber;
@@ -599,7 +599,7 @@ function buildTrend(){
       +(ratioChart?card(ratioChart):'')
       +'</div>';
   }else{
-    kpiCharts='<div style="text-align:center;padding:36px;color:'+C.textX+';font-size:13px">KPIデータが2ヶ月以上入力されるとグラフが表示されます</div>';
+    kpiCharts='<div style="text-align:center;padding:36px;color:'+C.textX+';font-size:13px">KPIデータを入力するとグラフが表示されます</div>';
   }
 
   // ── 大型支出 ────────────────────────────────────────────
@@ -673,9 +673,10 @@ function buildTrend(){
       +(tTab==='pl'
         ?card(mainChart)+(balChart||salesChart?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">'+(balChart?card(balChart):'')+(salesChart?card(salesChart):'<div></div>')+'</div>':'')
         :tTab==='kpi'?kpiCharts
+        :tTab==='block'?buildBlockPuzzle(active,totalRev,totalSg)
         :tTab==='biz'?buildBusiness()
         :tTab==='bs'?buildBsTab()
-        :buildBlockPuzzle(active,totalRev,totalSg))
+        :kpiCharts)
     +'</div>'
     +expHtml
     +cardNP(slabel('📋','月次損益サマリー（クリックで詳細へ）')
@@ -1339,6 +1340,186 @@ function buildBusiness(){
 
   return '<div>'+kpiCards+shareHtml+'<div style="margin-bottom:14px">'+costTable+'</div></div>';
 }
+
+function buildBlockPuzzle(active, totalRev, totalSg){
+  if(!active||!active.length||!totalRev){
+    return '<div style="text-align:center;padding:40px;color:'+C.textX+';font-size:13px">損益CSVをアップロードすると財務ビジュアルが表示されます</div>';
+  }
+  function sumRaw(keys){
+    return keys.reduce(function(s,k){
+      var d=S.raw[k];if(!d)return s;
+      return s+active.reduce(function(ss,dd){
+        var v=d[dd.month];return ss+((v!=null&&v!=='')?+v:0);
+      },0);
+    },0);
+  }
+  var uriage = active.reduce(function(s,dd){
+    var d=S.raw['売上高合計']||S.raw['売上高'];
+    if(!d)return s;
+    var v=d[dd.month];return s+((v!=null&&v!=='')?+v:0);
+  },0)||totalRev;
+
+  var hendou  = sumRaw(['水道光熱費','業務委託料','広告宣伝費','接待交際費','旅費交通費','荷造運賃']);
+  var jinken  = sumRaw(['役員報酬','給料賃金','法定福利費','福利厚生費','研修採用費']);
+  var sonota  = sumRaw(['備品・消耗品費','支払手数料','支払報酬','修繕費','会議費','新聞図書費','諸会費','車両費','雑費']);
+  var kotei_sum = jinken + sonota;
+  var arari   = uriage - hendou;
+  var rieki   = arari - kotei_sum;
+  var akaji   = Math.max(0, -rieki);
+
+  // 全幅の基準：変動費 + 固定費（その他＋人件費）
+  // = hendou + sonota + jinken
+  // 行1：売上高 + 赤字 = hendou + sonota + jinken（同じ全幅）
+  // 行2：変動費 + 粗利 + 赤字スペース = 同じ全幅
+  // 行3：変動費スペース + その他 + 人件費 = 同じ全幅
+  var totalW = hendou + kotei_sum; // hendou + sonota + jinken
+
+  function fmt(n){return Math.round(Math.abs(n)/10000).toLocaleString()+'万';}
+  function pc(v){return Math.round(Math.abs(v)/uriage*100)+'%';}
+  function fl(v){return Math.max(1,Math.round(Math.abs(v)/totalW*10000));}
+
+  var DETAILS={
+    hendou:[
+      {name:'水道光熱費',val:sumRaw(['水道光熱費'])},
+      {name:'業務委託料',val:sumRaw(['業務委託料'])},
+      {name:'広告宣伝費',val:sumRaw(['広告宣伝費'])},
+      {name:'接待交際費',val:sumRaw(['接待交際費'])},
+      {name:'旅費交通費',val:sumRaw(['旅費交通費'])},
+      {name:'荷造運賃',  val:sumRaw(['荷造運賃'])},
+    ],
+    sonota:[
+      {name:'支払手数料',val:sumRaw(['支払手数料'])},
+      {name:'備品消耗品',val:sumRaw(['備品・消耗品費'])},
+      {name:'支払報酬',  val:sumRaw(['支払報酬'])},
+      {name:'修繕費',    val:sumRaw(['修繕費'])},
+      {name:'諸経費',    val:sumRaw(['会議費','新聞図書費','諸会費','車両費','雑費'])},
+    ],
+    jinken:[
+      {name:'給料賃金',  val:sumRaw(['給料賃金'])},
+      {name:'役員報酬',  val:sumRaw(['役員報酬'])},
+      {name:'法定福利費',val:sumRaw(['法定福利費'])},
+      {name:'福利厚生費',val:sumRaw(['福利厚生費'])},
+      {name:'研修採用費',val:sumRaw(['研修採用費'])},
+    ],
+  };
+
+  var uid='db'+Math.floor(Math.random()*99999);
+
+  function detailRows(key,color,base){
+    return (DETAILS[key]||[]).filter(function(d){return d.val>0;}).map(function(d){
+      var bw=Math.min(100,Math.round(d.val/(base||1)*100));
+      return '<div style="display:flex;align-items:center;gap:5px;margin-bottom:4px;">'
+        +'<span style="font-size:10px;color:'+C.textS+';width:72px;flex-shrink:0;text-align:right;">'+esc(d.name)+'</span>'
+        +'<div style="flex:1;height:9px;background:'+C.border+';border-radius:2px;overflow:hidden;">'
+          +'<div style="width:'+bw+'%;height:100%;background:'+color+';opacity:0.6;border-radius:2px;"></div>'
+        +'</div>'
+        +'<span style="font-size:10px;color:'+C.textM+';white-space:nowrap;width:40px;text-align:right;">'+fmt(d.val)+'</span>'
+        +'<span style="font-size:9px;color:'+C.textX+';white-space:nowrap;width:28px;">'+pc(d.val)+'</span>'
+        +'</div>';
+    }).join('');
+  }
+
+  function makeBlk(key,label,val,bg,bd,tc,color){
+    var pid=uid+key;
+    return '<div style="flex:'+fl(val)+';min-width:0;display:flex;flex-direction:column;">'
+      +'<div onclick="(function(el){'
+        +'var p=document.getElementById(\''+pid+'\');if(!p)return;'
+        +'var o=el.getAttribute(\'data-o\')==\'1\';'
+        +'p.style.maxHeight=o?\'0\':\'400px\';'
+        +'el.setAttribute(\'data-o\',o?\'0\':\'1\');'
+        +'el.querySelector(\'.chv\').textContent=o?\'▼\':\'▲\';'
+      +'})(this);" data-o="0" '
+      +'style="cursor:pointer;flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;'
+        +'border-radius:4px 4px 0 0;padding:8px 4px;min-height:62px;overflow:hidden;box-sizing:border-box;'
+        +'background:'+bg+';color:'+tc+';border:1px solid '+bd+';">'
+        +'<div style="font-size:11px;font-weight:600;width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+label+'</div>'
+        +'<div style="font-size:11px;font-weight:500;margin-top:2px;">'+(val<0?'▲':'')+fmt(val)+'</div>'
+        +'<div style="font-size:9px;opacity:0.7;">'+pc(val)+'</div>'
+        +'<div class="chv" style="font-size:9px;margin-top:2px;opacity:0.4;">▼</div>'
+      +'</div>'
+      +'<div id="'+pid+'" style="max-height:0;overflow:hidden;transition:max-height 0.3s ease;'
+        +'background:'+C.surf+';border:1px solid '+bd+';border-top:none;border-radius:0 0 4px 4px;">'
+        +'<div style="padding:8px 6px;">'+detailRows(key,color,val)+'</div>'
+      +'</div>'
+    +'</div>';
+  }
+
+  var axStyle='width:60px;flex-shrink:0;display:flex;align-items:flex-start;justify-content:flex-end;'
+    +'padding-right:10px;padding-top:20px;font-size:13px;font-weight:600;color:'+C.textS+';border-right:2px solid '+C.border+';';
+
+  var rColor=rieki>=0?C.green:C.red;
+  var rSign=rieki>=0?'+':'▲';
+
+  var html=''
+    // ── 行1：[売上高(uriage)][赤字(akaji)] → 合計=totalW ──
+    +'<div style="display:flex;align-items:stretch;margin-bottom:6px;">'
+      +'<div style="'+axStyle+'">売上</div>'
+      +'<div style="flex:1;min-width:0;padding-left:8px;display:flex;gap:4px;overflow:hidden;">'
+        +'<div style="flex:'+fl(uriage)+';min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:center;'
+          +'border-radius:4px;padding:10px 4px;min-height:62px;background:#e8f5ee;color:#1a5c38;border:1px solid #7cc49a;">'
+          +'<div style="font-size:12px;font-weight:600;">売上高</div>'
+          +'<div style="font-size:14px;font-weight:700;margin-top:2px;">'+fmt(uriage)+'</div>'
+          +'<div style="font-size:10px;opacity:0.7;">100%</div>'
+        +'</div>'
+        +(akaji>0
+          ?'<div style="width:4px;flex-shrink:0;"></div>'
+           +'<div style="flex:'+fl(akaji)+';min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:center;'
+             +'border-radius:4px;padding:8px 4px;min-height:62px;background:#fdeaea;color:#7a1212;border:1.5px dashed #e08080;">'
+             +'<div style="font-size:11px;font-weight:600;">赤字</div>'
+             +'<div style="font-size:11px;font-weight:500;margin-top:2px;">▲'+fmt(akaji)+'</div>'
+             +'<div style="font-size:9px;opacity:0.7;">▲'+pc(akaji)+'</div>'
+           +'</div>'
+          :'')
+      +'</div>'
+    +'</div>'
+
+    // ── 行2：[変動費(hendou)][粗利(arari)][スペース(akaji)] → 合計=totalW ──
+    +'<div style="display:flex;align-items:flex-start;margin-bottom:6px;">'
+      +'<div style="'+axStyle+'">変動</div>'
+      +'<div style="flex:1;min-width:0;padding-left:8px;display:flex;gap:4px;align-items:flex-start;overflow:hidden;">'
+        +makeBlk('hendou','変動費',hendou,'#fdeee8','#e0856a','#7a2e12','#e0856a')
+        +(arari>0
+          ?'<div style="width:4px;flex-shrink:0;"></div>'
+           +'<div style="flex:'+fl(arari)+';min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:center;'
+             +'border-radius:4px;padding:8px 4px;min-height:62px;background:#fff;color:#3a2f80;border:1.5px dashed #7b6ed6;">'
+             +'<div style="font-size:11px;font-weight:600;">粗利</div>'
+             +'<div style="font-size:12px;font-weight:700;margin-top:2px;">'+fmt(arari)+'</div>'
+             +'<div style="font-size:10px;opacity:0.7;">'+pc(arari)+'</div>'
+           +'</div>'
+          :'')
+        // 赤字分のスペーサー（行1の赤字と幅を揃える）
+        +(akaji>0?'<div style="width:4px;flex-shrink:0;"></div><div style="flex:'+fl(akaji)+';min-width:0;"></div>':'')
+      +'</div>'
+    +'</div>'
+
+    // 区切り線
+    +'<div style="height:1px;background:'+C.border+';margin:2px 0 6px 68px;"></div>'
+
+    // ── 行3：[スペース(hendou)][その他(sonota)][人件費(jinken)] → 合計=totalW ──
+    // 赤字なし。右端が行1の右端（売上+赤字）と揃う
+    +'<div style="display:flex;align-items:flex-start;">'
+      +'<div style="'+axStyle+'">固定</div>'
+      +'<div style="flex:1;min-width:0;padding-left:8px;display:flex;gap:4px;align-items:flex-start;overflow:hidden;">'
+        +'<div style="flex:'+fl(hendou)+';min-width:0;"></div>'
+        +'<div style="width:4px;flex-shrink:0;"></div>'
+        +makeBlk('sonota','その他',sonota,'#f2f0eb','#c0bdb5','#444','#c0bdb5')
+        +'<div style="width:4px;flex-shrink:0;"></div>'
+        +makeBlk('jinken','人件費',jinken,'#eeedfb','#9b94e0','#3a2f80','#9b94e0')
+      +'</div>'
+    +'</div>'
+
+    // サマリー
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:1rem;padding-top:1rem;'
+      +'border-top:1px solid '+C.border+';padding-left:68px;font-size:12px;color:'+C.textS+'">'
+      +'<span>粗利率: <b style="color:'+C.teal+'">'+pc(arari)+'</b></span>'
+      +'<span>固定費合計: <b style="color:'+C.amber+'">'+fmt(kotei_sum)+'</b></span>'
+      +'<span>人件費比率: <b style="color:'+C.indigo+'">'+pc(jinken)+'</b></span>'
+      +'<span>営業利益: <b style="color:'+rColor+'">'+rSign+fmt(Math.abs(rieki))+'</b></span>'
+    +'</div>';
+
+  return '<div style="overflow:hidden;">'+card(html)+'</div>';
+}
+
 
 function render(){
   var content=S.view==='trend'?buildTrend():buildMonth();

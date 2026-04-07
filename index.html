@@ -441,31 +441,47 @@ function buildTrend(){
     balChart=slabel('💰','残高推移')+'<div style="text-align:center;padding:16px 8px"><div style="font-size:24px;margin-bottom:6px">📝</div><div style="font-size:11px;color:'+C.textS+';line-height:1.7">各月の「財務」タブで<br>月末残高を入力すると<br>グラフが表示されます</div></div>';
   }
 
-  // ── 店舗別売上グラフ（直近6ヶ月）──────────────────────────
-  var salesActiveAll=active.filter(function(d){return S.kpiData[d.month]&&(S.kpiData[d.month].aqxia_sales||S.kpiData[d.month].air_sales);});
-  var salesActive=salesActiveAll.length>6?salesActiveAll.slice(-6):salesActiveAll;
+  // ── 事業別売上グラフ（直近6ヶ月）──────────────────────────
+  // スポーツクラブ: KPI の aqxia_sales or 損益CSV売上高、CL・宿泊: KPI入力値
+  var bizMonthsAll=FM.filter(function(m){
+    var k=S.kpiData[m]||{};
+    var hasSC=k.aqxia_sales||k.air_sales||getMonthData(m).rev>0;
+    var hasCL=k.cl_sales;var hasAC=k.ac_sales;
+    return hasSC||hasCL||hasAC;
+  });
+  var bizMonths=bizMonthsAll.length>6?bizMonthsAll.slice(-6):bizMonthsAll;
   var salesChart='';
-  if(salesActive.length>=1){
-    var maxS=Math.max.apply(null,salesActive.map(function(d){var k=S.kpiData[d.month];return (k.aqxia_sales||0)+(k.air_sales||0);}));if(maxS<=0)maxS=1;
+  if(bizMonths.length>=1){
     var SC_H=110;
-    var sBars=salesActive.map(function(d){
-      var k=S.kpiData[d.month],aq=k.aqxia_sales||0,ai=k.air_sales||0;
-      var haq=Math.max(2,Math.round(aq/maxS*SC_H)),hai=Math.max(2,Math.round(ai/maxS*SC_H));
+    var bizBarsData=bizMonths.map(function(m){
+      var k=S.kpiData[m]||{};
+      var sc=(k.aqxia_sales||0)+(k.air_sales||0)||(getMonthData(m).rev||0);
+      var cl=k.cl_sales||0;
+      var ac=k.ac_sales||0;
+      return{month:m,sc:sc,cl:cl,ac:ac,tot:sc+cl+ac};
+    });
+    var maxBiz=Math.max.apply(null,bizBarsData.map(function(d){return d.tot;}));if(maxBiz<=0)maxBiz=1;
+    var sBars=bizBarsData.map(function(d){
+      var hsc=Math.max(d.sc?2:0,Math.round(d.sc/maxBiz*SC_H));
+      var hcl=Math.max(d.cl?2:0,Math.round(d.cl/maxBiz*SC_H));
+      var hac=Math.max(d.ac?2:0,Math.round(d.ac/maxBiz*SC_H));
       var mo=d.month.replace(/\d{4}年/,'').replace('月','');
-      var tot=Math.round((aq+ai)/10000);
+      var tot=Math.round(d.tot/10000);
       return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:0">'
         +'<div style="font-size:9px;color:'+C.textS+';font-weight:700;margin-bottom:4px">'+tot+'万</div>'
         +'<div style="width:100%;height:'+SC_H+'px;display:flex;align-items:flex-end;justify-content:center;gap:1px">'
-          +(aq?'<div style="width:35%;height:'+haq+'px;background:'+C.teal+';border-radius:3px 3px 0 0"></div>':'')
-          +(ai?'<div style="width:35%;height:'+hai+'px;background:'+C.blue+';border-radius:3px 3px 0 0"></div>':'')
+          +(d.sc?'<div style="width:30%;height:'+hsc+'px;background:'+C.teal+';border-radius:3px 3px 0 0" title="SC"></div>':'')
+          +(d.cl?'<div style="width:30%;height:'+hcl+'px;background:'+C.green+';border-radius:3px 3px 0 0" title="CL"></div>':'')
+          +(d.ac?'<div style="width:30%;height:'+hac+'px;background:'+C.pink+';border-radius:3px 3px 0 0" title="宿泊"></div>':'')
         +'</div>'
         +'<div style="font-size:10px;color:'+C.textS+';margin-top:4px;font-weight:600">'+mo+'月</div>'
         +'</div>';
     }).join('');
-    salesChart=slabel('🏋️','店舗別売上内訳（万円）')
+    salesChart=slabel('🏢','事業別売上（万円）')
       +'<div style="display:flex;gap:8px;margin-bottom:8px">'
-        +'<span style="font-size:10px;color:'+C.textM+';display:flex;align-items:center;gap:3px"><span style="display:inline-block;width:8px;height:8px;background:'+C.teal+';border-radius:2px"></span>AQXIA</span>'
-        +'<span style="font-size:10px;color:'+C.textM+';display:flex;align-items:center;gap:3px"><span style="display:inline-block;width:8px;height:8px;background:'+C.blue+';border-radius:2px"></span>AIR</span>'
+        +'<span style="font-size:10px;color:'+C.textM+';display:flex;align-items:center;gap:3px"><span style="display:inline-block;width:8px;height:8px;background:'+C.teal+';border-radius:2px"></span>SC</span>'
+        +'<span style="font-size:10px;color:'+C.textM+';display:flex;align-items:center;gap:3px"><span style="display:inline-block;width:8px;height:8px;background:'+C.green+';border-radius:2px"></span>CL</span>'
+        +'<span style="font-size:10px;color:'+C.textM+';display:flex;align-items:center;gap:3px"><span style="display:inline-block;width:8px;height:8px;background:'+C.pink+';border-radius:2px"></span>宿泊</span>'
       +'</div>'
       +'<div style="display:flex;align-items:flex-end;gap:4px;padding:4px 2px 0;min-height:'+(SC_H+50)+'px">'+sBars+'</div>';
   }

@@ -290,6 +290,14 @@ function buildTrend(){
   }
   var totalRev=active.reduce(function(s,d){return s+d.rev;},0);
   var totalNet=active.reduce(function(s,d){return s+d.net;},0);
+  var totalOp=active.reduce(function(s,d){return s+d.op;},0);
+  // 粗利 = 売上高合計（原価なし）
+  var totalGp=totalRev;
+  // 人件費合計
+  var totalJinken=['役員報酬','給料賃金','法定福利費','福利厚生費','研修採用費'].reduce(function(s,k){
+    var d=S.raw[k];if(!d)return s;
+    return s+active.reduce(function(ss,dd){var v=d[dd.month];return ss+((v!=null&&v!=='')?+v:0);},0);
+  },0);
   var totalSg=active.reduce(function(s,d){return s+d.sg;},0);
   var last=active[active.length-1];
   var avgSg=active.length?Math.round(totalSg/active.length):0;
@@ -392,6 +400,8 @@ function buildTrend(){
 
   // ── KPIグラフ ───────────────────────────────────────────
   var kpiActive=FM.filter(function(m){return !!S.kpiData[m];});
+  // 直近6ヶ月に絞る
+  if(kpiActive.length>6)kpiActive=kpiActive.slice(-6);
   var kpiCharts='';
   if(kpiActive.length>=2){
     // 会員数
@@ -554,6 +564,12 @@ function buildTrend(){
     +kTile('年度累計純損益',fmtM(totalNet),totalNet>=0?C.green:C.red)
     +kTile('直近月 会員数',lastKpi.members_end?lastKpi.members_end+'名':'—',C.indigo,memMs.length?memMs[memMs.length-1].month+'時点':'KPIから取得')
     +kTile('月平均販管費',fmtM(avgSg),C.amber,active.length+'ヶ月平均')
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px">'
+    +kTile('年間粗利',fmtM(totalGp),C.teal,'粗利率 '+Math.round(totalRev>0?totalGp/totalRev*100:0)+'%')
+    +kTile('年間営業利益',fmtM(totalOp),totalOp>=0?C.green:C.red,'営業利益率 '+Math.round(totalRev>0?totalOp/totalRev*100:0)+'%')
+    +kTile('損益分岐点',totalOp>=0?'達成済':fmtM(totalRev-totalOp),totalOp>=0?C.green:C.amber,totalOp<0?'黒字化に必要な累計売上':'黒字達成')
+    +kTile('人件費率',totalRev>0?Math.round(totalJinken/totalRev*100)+'%':'—',C.indigo,'売上に対する人件費比率')
     +'</div>'
     +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">'
     +kTile('直近残高',lastBal!=null?fmtM(lastBal):'—',lastBal!=null?(lastBal>=0?C.blue:C.red):C.textX,lastBalM?lastBalM+'末時点':'各月に手入力')
@@ -1475,6 +1491,7 @@ async function handleBsCsv(file){
   catch(e){try{text=new TextDecoder('shift-jis').decode(new Uint8Array(ab));}catch(e2){text=new TextDecoder('utf-8').decode(new Uint8Array(ab));}}
   S.bsData=parseBsCSV(text);
   S.sec='bs';
+  if(S.gasConnected){gasPost({action:'save_bs_data',bsName:S.bsName,rawData:text});}
   render();
 }
 
@@ -1671,6 +1688,7 @@ async function loadGas(){
       if(j.financeNotes)S.finNotes=j.financeNotes;
       if(j.formAnswers)S.formAnswers=j.formAnswers;
       if(j.csvData&&j.csvData.rawData){S.csv=j.csvData.rawData;S.csvName=j.csvData.csvName||'（クラウドから）';S.raw=parseCSV(S.csv);}
+      if(j.bsData&&j.bsData.rawData){S.bsData=parseBsCSV(j.bsData.rawData);S.bsName=j.bsData.bsName||'（クラウドから）';}
       S.gasStatus='✅ 同期完了 ('+new Date().toLocaleTimeString('ja-JP')+')';
     }else{S.gasStatus='⚠️ '+(j&&j.error||'エラー');}
   }catch(e){S.gasStatus='⚠️ '+e.message;}

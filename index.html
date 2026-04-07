@@ -337,9 +337,9 @@ function buildHeader(){
     +'<div id="csv-drop" style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;border:1.5px dashed '+C.border+';cursor:pointer;flex-shrink:0">'
     +'<input id="csv-input" type="file" accept=".csv" style="display:none"><span style="font-size:13px">📂</span>'
     +'<div><div style="font-size:10px;font-weight:700;color:'+C.teal+'">損益CSV</div><div style="font-size:9px;color:'+C.textX+';max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(S.csvName)+'</div></div></div>'
-    +'<div id="bs-drop" style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;border:1.5px dashed '+C.border+';cursor:pointer;flex-shrink:0">'
+    +'<div id="bs-drop" style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;border:1.5px dashed '+(S.bsData&&Object.keys(S.bsData).length?C.purple:C.border)+';cursor:pointer;flex-shrink:0;background:'+(S.bsData&&Object.keys(S.bsData).length?C.purpleL:C.white)+'">'
     +'<input id="bs-input" type="file" accept=".csv" style="display:none"><span style="font-size:13px">📋</span>'
-    +'<div><div style="font-size:10px;font-weight:700;color:'+C.purple+'">残高試算表</div><div style="font-size:9px;color:'+C.textX+';max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(S.bsName)+'</div></div></div>'
+    +'<div><div style="font-size:10px;font-weight:700;color:'+C.purple+'">貸借対照表</div><div style="font-size:9px;color:'+C.textX+';max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(S.bsData&&Object.keys(S.bsData).length?'✅ ':'')+esc(S.bsName)+'</div></div></div>'
     +'<div id="biz-drop" style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;border:1.5px dashed '+C.border+';cursor:pointer;flex-shrink:0">'
     +'<input id="biz-input" type="file" accept=".csv" style="display:none"><span style="font-size:13px">🏢</span>'
     +'<div><div style="font-size:10px;font-weight:700;color:'+C.green+'">部門別CSV</div><div style="font-size:9px;color:'+C.textX+';max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(S.bizCsv?'✅ '+esc(S.bizCsvName):esc(S.bizCsvName))+'</div></div></div>'
@@ -622,10 +622,13 @@ function buildTrend(){
   // ── タブUI ──────────────────────────────────────────────
   var tTab=S.trendTab||'pl';
   var tabBar='<div style="display:flex;gap:3px;margin-bottom:16px;background:'+C.white+';border-radius:11px;padding:4px;border:1px solid '+C.border+';width:fit-content">'
-    +['pl','kpi','block','biz'].map(function(id){
-      var lbl=id==='pl'?'📊 損益グラフ':id==='kpi'?'👥 KPIグラフ':id==='block'?'💰 どんぶり図':'🏢 事業別';
+    +['pl','kpi','block','biz','bs'].map(function(id){
+      var lbl=id==='pl'?'📊 損益グラフ':id==='kpi'?'👥 KPIグラフ':id==='block'?'💰 どんぶり図':id==='biz'?'🏢 事業別':'📋 貸借対照表';
+      var hasDot=(id==='bs'&&S.bsData&&Object.keys(S.bsData).length>0);
       var isAct=tTab===id;
-      return '<button data-ttab="'+id+'" style="padding:7px 20px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:'+(isAct?'linear-gradient(135deg,'+C.teal+','+C.blue+')':C.surf)+';color:'+(isAct?C.white:C.textS)+'">'+lbl+'</button>';
+      return '<button data-ttab="'+id+'" style="padding:7px 20px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:'+(isAct?'linear-gradient(135deg,'+C.teal+','+C.blue+')':C.surf)+';color:'+(isAct?C.white:C.textS)+';position:relative">'
+        +lbl+(hasDot?'<span style="position:absolute;top:5px;right:5px;width:5px;height:5px;border-radius:50%;background:'+C.green+'"></span>':'')
+        +'</button>';
     }).join('')
   +'</div>';
 
@@ -655,6 +658,7 @@ function buildTrend(){
         ?card(mainChart)+'<div style="margin-top:14px">'+card(balChart)+'</div>'+(salesChart?'<div style="margin-top:14px">'+salesChart+'</div>':'')
         :tTab==='kpi'?kpiCharts
         :tTab==='biz'?buildBusiness()
+        :tTab==='bs'?buildBsTab()
         :buildBlockPuzzle(active,totalRev,totalSg))
     +'</div>'
     +expHtml
@@ -1051,7 +1055,7 @@ function buildMonth(){
     +(S.kpiData[S.selMonth]?badge('KPI取込済',C.indigo):'')+(rep.text?badge('報告書あり',C.green):'')+'</div>'
     +'<div style="display:flex;gap:7px">'+(ai>0?btnS('btn-prev','← '+FM[ai-1],'font-size:12px'):'')+(ai<11?btnS('btn-next',FM[ai+1]+' →','font-size:12px'):'')+'</div></div>'
     +'<div style="display:flex;gap:3px;margin-bottom:16px;background:'+C.white+';border-radius:11px;padding:4px;border:1px solid '+C.border+';width:fit-content">'+secTabs+'</div>'
-    +(S.sec==='finance'?finHtml+noteHtml+memoHtml:'')+(S.sec==='bs'?buildBsTab():'')
+    +(S.sec==='finance'?finHtml+noteHtml+memoHtml:'')+(S.sec==='bs'?'<div style="text-align:center;padding:36px 20px"><div style="font-size:32px;margin-bottom:12px">📋</div><div style="font-size:14px;font-weight:700;color:'+C.textM+';margin-bottom:8px">貸借対照表は全体タブで確認できます</div><div style="font-size:12px;color:'+C.textS+';margin-bottom:20px">全体ビューは年度全体の財務状況を表示しています</div>'+btnP("btn-goto-bs","📋 貸借対照表を見る","font-size:13px;padding:10px 24px")+"</div>":"")
     +(S.sec==='kpi'?buildKpiTab():'')
     +(S.sec==='report'?repHtml:'')
     +'</div>';
@@ -1067,10 +1071,18 @@ function parseBsCSV(text){
       var re=/"(?:[^"]|"")*"|[^,]*/g;
       cs=(line.match(re)||[]).map(function(s){return s.replace(/^"|"$/g,'').replace(/""/g,'"');});
     }catch(e){cs=line.split(',');}
-    var label=cs[0]?cs[0]:(cs[1]||'');
+    // 列0: 合計行ラベル（例:「現金及び預金合計」）
+    // 列1: 勘定科目（例:「普通預金」）
+    // 列2: 補助科目（例:「沖縄海邦銀行」）→ 無視
+    // 列6: 残高（終了月残高）
+    var label='';
+    if(cs[0]&&cs[0].trim())label=cs[0].trim();         // 合計行 or セクション見出し
+    else if(cs[1]&&cs[1].trim())label=cs[1].trim();    // 明細行（勘定科目）
     if(!label)return;
+    // 補助科目行（列2に値あり）は合算しないためスキップ
+    if(cs[2]&&cs[2].trim())return;
     var raw=(cs[6]||'').replace(/,/g,'');
-    var val=(raw!==''&&!isNaN(parseInt(raw)))?parseInt(raw):null;
+    var val=(raw!==''&&raw!==undefined&&!isNaN(parseInt(raw)))?parseInt(raw):null;
     if(val!==null&&!data[label])data[label]=val;
   });
   return data;
@@ -1082,10 +1094,14 @@ function buildBsTab(){
   if(!hasData){
     return card('<div style="text-align:center;padding:40px 20px">'
       +'<div style="font-size:36px;margin-bottom:12px">📋</div>'
-      +'<div style="font-size:14px;font-weight:700;color:'+C.textM+';margin-bottom:8px">残高試算表がありません</div>'
-      +'<div style="font-size:12px;color:'+C.textS+';margin-bottom:20px">マネーフォワードから貸借対照表CSVをダウンロードして<br>ヘッダーの「残高試算表」からアップロードしてください</div>'
+      +'<div style="font-size:14px;font-weight:700;color:'+C.textM+';margin-bottom:8px">貸借対照表データがありません</div>'
+      +'<div style="font-size:13px;color:'+C.textS+';line-height:1.9;margin-bottom:8px">マネーフォワード → 会計 → レポート → <b>貸借対照表_残高試算表</b> のCSVをダウンロードして<br>ヘッダーの「📋 残高試算表」からアップロードしてください</div>'
+      +'<div style="font-size:11px;color:'+C.textX+';background:'+C.surf+';border-radius:8px;padding:8px 14px;display:inline-block;margin-bottom:20px">⚠️ 損益計算書_残高試算表ではなく <b>貸借対照表_残高試算表</b> をご使用ください</div><br>'
       +'</div>');
   }
+  var sourceNote='<div style="font-size:10px;color:'+C.textX+';margin-bottom:12px;padding:6px 12px;background:'+C.surf+';border-radius:7px;border:1px solid '+C.border+'">'
+    +'📋 データソース: '+esc(S.bsName)+' （年間累計・期末残高）'
+  +'</div>';
   function fmt(v){if(v==null)return'—';return(v<0?'▲':'')+Math.abs(Math.round(v/10000)).toLocaleString()+'万';}
   function colV(v){return v==null?C.textX:v<0?C.red:C.text;}
 
@@ -1177,7 +1193,7 @@ function buildBsTab(){
   }).join('');
   var spotCard=spotRows?card(slabel('📌','主要科目残高')+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'+spotRows+'</div>'):'';
 
-  return '<div>'+tiles+detail+spotCard+'</div>';
+  return '<div>'+sourceNote+tiles+detail+spotCard+'</div>';
 }
 
 
@@ -1333,6 +1349,8 @@ function bindEvents(){
   var bs=document.getElementById('btn-settings');if(bs)bs.addEventListener('click',function(){S.showSettings=!S.showSettings;render();});
 
   var boc=document.getElementById('btn-open-csv');if(boc)boc.addEventListener('click',function(){document.getElementById('csv-input').click();});
+  var bgbs=document.getElementById('btn-goto-bs');
+  if(bgbs)bgbs.addEventListener('click',function(){S.view='trend';S.trendTab='bs';render();});
   var bok=document.getElementById('btn-open-kpi');if(bok)bok.addEventListener('click',function(){document.getElementById('kpi-input').click();});
   // 部門別CSV
   var bizd=document.getElementById('biz-drop'),bizi=document.getElementById('biz-input');
@@ -1530,7 +1548,9 @@ async function handleBsCsv(file){
   try{text=new TextDecoder('cp932').decode(new Uint8Array(ab));}
   catch(e){try{text=new TextDecoder('shift-jis').decode(new Uint8Array(ab));}catch(e2){text=new TextDecoder('utf-8').decode(new Uint8Array(ab));}}
   S.bsData=parseBsCSV(text);
-  S.sec='bs';
+  // 全体タブのB/Sビューに遷移
+  S.view='trend';
+  S.trendTab='bs';
   if(S.gasConnected){gasPost({action:'save_bs_data',bsName:S.bsName,rawData:text});}
   render();
 }

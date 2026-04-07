@@ -649,22 +649,36 @@ function buildTrend(){
   +'</div>';
 
   var remColor=remainM!=null?(remainM>=6?C.green:remainM>=3?C.amber:C.red):C.textX;
+  // ── グループ見出しヘルパー ─────────────────────────────
+  function groupHeader(icon,title,color){
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;margin-top:2px">'
+      +'<span style="font-size:15px">'+icon+'</span>'
+      +'<span style="font-size:12px;font-weight:800;color:'+color+'">'+title+'</span>'
+      +'<div style="flex:1;height:1px;background:'+color+'33;margin-left:2px"></div>'
+    +'</div>';
+  }
   return '<div>'
-    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px">'
+    // ── 💰 財務 ────────────────────────────────────────
+    +groupHeader('💰','財務',C.teal)
+    +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px">'
     +kTile('年度累計売上',fmtM(totalRev),C.teal,(active[0]?active[0].month:'')+'〜'+(last?last.month:''))
-    +kTile('年度累計純損益',fmtM(totalNet),totalNet>=0?C.green:C.red)
-    +kTile('直近月 会員数',lastKpi.members_end?lastKpi.members_end+'名':'—',C.indigo,memMs.length?memMs[memMs.length-1].month+'時点':'KPIから取得')
-    +kTile('月平均販管費',fmtM(avgSg),C.amber,active.length+'ヶ月平均')
-    +'</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px">'
     +kTile('年間粗利',fmtM(totalGp),C.teal,'粗利率 '+Math.round(totalRev>0?totalGp/totalRev*100:0)+'%')
     +kTile('年間営業利益',fmtM(totalOp),totalOp>=0?C.green:C.red,'営業利益率 '+Math.round(totalRev>0?totalOp/totalRev*100:0)+'%')
-    +kTile('損益分岐点',totalOp>=0?'達成済':fmtM(totalRev-totalOp),totalOp>=0?C.green:C.amber,totalOp<0?'黒字化に必要な累計売上':'黒字達成')
-    +kTile('人件費率',totalRev>0?Math.round(totalJinken/totalRev*100)+'%':'—',C.indigo,'売上に対する人件費比率')
+    +kTile('年度累計純損益',fmtM(totalNet),totalNet>=0?C.green:C.red,totalNet>=0?'黒字':'赤字')
+    +kTile('月平均販管費',fmtM(avgSg),C.amber,active.length+'ヶ月平均')
     +'</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">'
+    // ── 👥 会員 ────────────────────────────────────────
+    +groupHeader('👥','会員',C.indigo)
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">'
+    +kTile('直近月 会員数',lastKpi.members_end?lastKpi.members_end+'名':'—',C.indigo,memMs.length?memMs[memMs.length-1].month+'時点':'KPIから取得')
+    +kTile('人件費率',totalRev>0?Math.round(totalJinken/totalRev*100)+'%':'—',C.indigo,'売上に対する人件費比率')
+    +kTile('損益分岐点',totalOp>=0?'達成済':fmtM(totalRev-totalOp),totalOp>=0?C.green:C.amber,totalOp<0?'黒字化に必要な累計売上':'黒字達成')
+    +'</div>'
+    // ── 🏦 資金繰り ────────────────────────────────────
+    +groupHeader('🏦','資金繰り',C.blue)
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">'
     +kTile('直近残高',lastBal!=null?fmtM(lastBal):'—',lastBal!=null?(lastBal>=0?C.blue:C.red):C.textX,lastBalM?lastBalM+'末時点':'各月に手入力')
-    +kTile('残存月数',remainM!=null?(remainM+'ヶ月'):'—',remColor,remainM!=null?'残高÷月平均販管費':'残高入力後に計算')
+    +kTile('残存月数',remainM!=null?(remainM+'ヶ月'):'—',remColor,remainM!=null?(remainM>=6?'安全圏':remainM>=3?'要注意':'⚠️ 危険水域'):'残高入力後に計算')
     +kTile('大型支出 計画中',allExp.filter(function(e){return e.type==='plan';}).length+'件',C.purple)
     +kTile('大型支出 実績',allExp.filter(function(e){return e.type==='actual';}).length+'件',C.orange)
     +'</div>'

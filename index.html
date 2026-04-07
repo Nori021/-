@@ -1101,29 +1101,48 @@ function buildBlockPuzzle(active, totalRev, totalSg){
   var hendou  = sumRaw(['水道光熱費','業務委託料','広告宣伝費','接待交際費','旅費交通費','荷造運賃']);
   var jinken  = sumRaw(['役員報酬','給料賃金','法定福利費','福利厚生費','研修採用費']);
   var sonota  = sumRaw(['備品・消耗品費','支払手数料','支払報酬','修繕費','会議費','新聞図書費','諸会費','車両費','雑費']);
-  var kotei_h = sumRaw(['地代家賃','賃借料','リース代','通信費','保険料','租税公課']);
-  var arari     = uriage - hendou;
-  var kotei_sum = kotei_h + sonota + jinken;
-  var rieki     = arari - kotei_sum;
+  var kotei_sum = jinken + sonota;
+  var arari   = uriage - hendou;
+  var rieki   = arari - kotei_sum;
+  var akaji   = Math.max(0, -rieki);
 
-  // ── 全体の基準は「変動費＋固定費合計」= 費用の合計幅 ──
-  // 行2：変動費 + 粗利 = 売上高（uriage）
-  // 行3：変動費(スペース) + 固定費3列 + 赤字 = 変動費 + 固定費合計
-  // 赤字 = 固定費合計 - 粗利 = kotei_sum - arari
-  // 全幅 = hendou + kotei_sum（費用の合計）= hendou + kotei_h + sonota + jinken
-  var totalW = hendou + kotei_sum; // これを100%とする
+  // 全幅の基準：変動費 + 固定費（その他＋人件費）
+  // = hendou + sonota + jinken
+  // 行1：売上高 + 赤字 = hendou + sonota + jinken（同じ全幅）
+  // 行2：変動費 + 粗利 + 赤字スペース = 同じ全幅
+  // 行3：変動費スペース + その他 + 人件費 = 同じ全幅
+  var totalW = hendou + kotei_sum; // hendou + sonota + jinken
 
   function fmt(n){return Math.round(Math.abs(n)/10000).toLocaleString()+'万';}
   function pc(v){return Math.round(Math.abs(v)/uriage*100)+'%';}
-  function fl(v){return Math.max(1,Math.round(Math.abs(v)/totalW*1000));} // flex値（1000基準）
+  function fl(v){return Math.max(1,Math.round(Math.abs(v)/totalW*10000));}
 
-  var DETAILS = {
-    hendou: [{name:'水道光熱費',val:sumRaw(['水道光熱費'])},{name:'業務委託料',val:sumRaw(['業務委託料'])},{name:'広告宣伝費',val:sumRaw(['広告宣伝費'])},{name:'接待交際費',val:sumRaw(['接待交際費'])},{name:'旅費交通費',val:sumRaw(['旅費交通費'])},{name:'荷造運賃',val:sumRaw(['荷造運賃'])}],
-    kotei_h:[{name:'地代家賃',val:sumRaw(['地代家賃'])},{name:'賃借料',val:sumRaw(['賃借料'])},{name:'通信費',val:sumRaw(['通信費'])},{name:'リース代',val:sumRaw(['リース代'])},{name:'保険料',val:sumRaw(['保険料'])},{name:'租税公課',val:sumRaw(['租税公課'])}],
-    sonota: [{name:'支払手数料',val:sumRaw(['支払手数料'])},{name:'備品消耗品',val:sumRaw(['備品・消耗品費'])},{name:'支払報酬',val:sumRaw(['支払報酬'])},{name:'修繕費',val:sumRaw(['修繕費'])},{name:'諸経費',val:sumRaw(['会議費','新聞図書費','諸会費','車両費','雑費'])}],
-    jinken: [{name:'給料賃金',val:sumRaw(['給料賃金'])},{name:'役員報酬',val:sumRaw(['役員報酬'])},{name:'法定福利費',val:sumRaw(['法定福利費'])},{name:'福利厚生費',val:sumRaw(['福利厚生費'])},{name:'研修採用費',val:sumRaw(['研修採用費'])}],
+  var DETAILS={
+    hendou:[
+      {name:'水道光熱費',val:sumRaw(['水道光熱費'])},
+      {name:'業務委託料',val:sumRaw(['業務委託料'])},
+      {name:'広告宣伝費',val:sumRaw(['広告宣伝費'])},
+      {name:'接待交際費',val:sumRaw(['接待交際費'])},
+      {name:'旅費交通費',val:sumRaw(['旅費交通費'])},
+      {name:'荷造運賃',  val:sumRaw(['荷造運賃'])},
+    ],
+    sonota:[
+      {name:'支払手数料',val:sumRaw(['支払手数料'])},
+      {name:'備品消耗品',val:sumRaw(['備品・消耗品費'])},
+      {name:'支払報酬',  val:sumRaw(['支払報酬'])},
+      {name:'修繕費',    val:sumRaw(['修繕費'])},
+      {name:'諸経費',    val:sumRaw(['会議費','新聞図書費','諸会費','車両費','雑費'])},
+    ],
+    jinken:[
+      {name:'給料賃金',  val:sumRaw(['給料賃金'])},
+      {name:'役員報酬',  val:sumRaw(['役員報酬'])},
+      {name:'法定福利費',val:sumRaw(['法定福利費'])},
+      {name:'福利厚生費',val:sumRaw(['福利厚生費'])},
+      {name:'研修採用費',val:sumRaw(['研修採用費'])},
+    ],
   };
-  var uid = 'db'+Math.floor(Math.random()*99999);
+
+  var uid='db'+Math.floor(Math.random()*99999);
 
   function detailRows(key,color,base){
     return (DETAILS[key]||[]).filter(function(d){return d.val>0;}).map(function(d){
@@ -1133,14 +1152,15 @@ function buildBlockPuzzle(active, totalRev, totalSg){
         +'<div style="flex:1;height:9px;background:'+C.border+';border-radius:2px;overflow:hidden;">'
           +'<div style="width:'+bw+'%;height:100%;background:'+color+';opacity:0.6;border-radius:2px;"></div>'
         +'</div>'
-        +'<span style="font-size:10px;color:'+C.textM+';white-space:nowrap;width:42px;text-align:right;">'+fmt(d.val)+'</span>'
-        +'<span style="font-size:9px;color:'+C.textX+';white-space:nowrap;width:30px;">'+pc(d.val)+'</span>'
+        +'<span style="font-size:10px;color:'+C.textM+';white-space:nowrap;width:40px;text-align:right;">'+fmt(d.val)+'</span>'
+        +'<span style="font-size:9px;color:'+C.textX+';white-space:nowrap;width:28px;">'+pc(d.val)+'</span>'
         +'</div>';
-  }).join('');}
+    }).join('');
+  }
 
   function makeBlk(key,label,val,bg,bd,tc,color){
     var pid=uid+key;
-    return '<div style="flex:'+fl(val)+';min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column;">'
+    return '<div style="flex:'+fl(val)+';min-width:0;display:flex;flex-direction:column;">'
       +'<div onclick="(function(el){'
         +'var p=document.getElementById(\''+pid+'\');if(!p)return;'
         +'var o=el.getAttribute(\'data-o\')==\'1\';'
@@ -1149,9 +1169,9 @@ function buildBlockPuzzle(active, totalRev, totalSg){
         +'el.querySelector(\'.chv\').textContent=o?\'▼\':\'▲\';'
       +'})(this);" data-o="0" '
       +'style="cursor:pointer;flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;'
-        +'border-radius:4px 4px 0 0;padding:8px 4px;box-sizing:border-box;min-height:60px;'
-        +'background:'+bg+';color:'+tc+';border:1px solid '+bd+';overflow:hidden;">'
-        +'<div style="font-size:11px;font-weight:600;text-align:center;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+label+'</div>'
+        +'border-radius:4px 4px 0 0;padding:8px 4px;min-height:62px;overflow:hidden;box-sizing:border-box;'
+        +'background:'+bg+';color:'+tc+';border:1px solid '+bd+';">'
+        +'<div style="font-size:11px;font-weight:600;width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+label+'</div>'
         +'<div style="font-size:11px;font-weight:500;margin-top:2px;">'+(val<0?'▲':'')+fmt(val)+'</div>'
         +'<div style="font-size:9px;opacity:0.7;">'+pc(val)+'</div>'
         +'<div class="chv" style="font-size:9px;margin-top:2px;opacity:0.4;">▼</div>'
@@ -1163,95 +1183,80 @@ function buildBlockPuzzle(active, totalRev, totalSg){
     +'</div>';
   }
 
-  var axStyle='width:64px;flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;'
-    +'padding-right:12px;font-size:13px;font-weight:600;color:'+C.textS+';border-right:2px solid '+C.border+';';
+  var axStyle='width:60px;flex-shrink:0;display:flex;align-items:flex-start;justify-content:flex-end;'
+    +'padding-right:10px;padding-top:20px;font-size:13px;font-weight:600;color:'+C.textS+';border-right:2px solid '+C.border+';';
 
   var rColor=rieki>=0?C.green:C.red;
   var rSign=rieki>=0?'+':'▲';
 
-  // 赤字ブロック（= 固定費 - 粗利）
-  var akaji = Math.abs(rieki); // 赤字額
-  var riekiBlk='';
-  if(rieki<0){
-    riekiBlk='<div style="flex:'+fl(akaji)+';min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:center;'
-      +'border-radius:4px;padding:8px 4px;min-height:60px;'
-      +'background:#fdeaea;color:#7a1212;border:1.5px dashed #e08080;">'
-      +'<div style="font-size:11px;font-weight:600;text-align:center;">赤字</div>'
-      +'<div style="font-size:11px;font-weight:500;margin-top:2px;">▲'+fmt(akaji)+'</div>'
-      +'<div style="font-size:9px;opacity:0.7;">▲'+pc(akaji)+'</div>'
-    +'</div>';
-  }else if(rieki>0){
-    riekiBlk='<div style="flex:'+fl(rieki)+';min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:center;'
-      +'border-radius:4px;padding:8px 4px;min-height:60px;'
-      +'background:#e8f5ee;color:#1a5c38;border:1px solid #7cc49a;">'
-      +'<div style="font-size:11px;font-weight:600;">利益</div>'
-      +'<div style="font-size:11px;font-weight:500;margin-top:2px;">'+fmt(rieki)+'</div>'
-      +'<div style="font-size:9px;opacity:0.7;">'+pc(rieki)+'</div>'
-    +'</div>';
-  }
-
   var html=''
-    // 行1：売上高（uriage分だけ＋残りは空白）
+    // ── 行1：[売上高(uriage)][赤字(akaji)] → 合計=totalW ──
     +'<div style="display:flex;align-items:stretch;margin-bottom:6px;">'
-      +'<div style="'+axStyle+'min-height:60px;">売上</div>'
-      +'<div style="flex:1;min-width:0;overflow:hidden;padding-left:10px;display:flex;gap:4px;">'
+      +'<div style="'+axStyle+'">売上</div>'
+      +'<div style="flex:1;min-width:0;padding-left:8px;display:flex;gap:4px;overflow:hidden;">'
         +'<div style="flex:'+fl(uriage)+';min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:center;'
-          +'border-radius:4px;padding:10px;min-height:60px;background:#e8f5ee;color:#1a5c38;border:1px solid #7cc49a;">'
+          +'border-radius:4px;padding:10px 4px;min-height:62px;background:#e8f5ee;color:#1a5c38;border:1px solid #7cc49a;">'
           +'<div style="font-size:12px;font-weight:600;">売上高</div>'
           +'<div style="font-size:14px;font-weight:700;margin-top:2px;">'+fmt(uriage)+'</div>'
           +'<div style="font-size:10px;opacity:0.7;">100%</div>'
         +'</div>'
-        // 赤字分の空白（売上の右にスペース）
-        +(rieki<0?'<div style="flex:'+fl(akaji)+';min-width:0;"></div>':'')
+        +(akaji>0
+          ?'<div style="width:4px;flex-shrink:0;"></div>'
+           +'<div style="flex:'+fl(akaji)+';min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:center;'
+             +'border-radius:4px;padding:8px 4px;min-height:62px;background:#fdeaea;color:#7a1212;border:1.5px dashed #e08080;">'
+             +'<div style="font-size:11px;font-weight:600;">赤字</div>'
+             +'<div style="font-size:11px;font-weight:500;margin-top:2px;">▲'+fmt(akaji)+'</div>'
+             +'<div style="font-size:9px;opacity:0.7;">▲'+pc(akaji)+'</div>'
+           +'</div>'
+          :'')
       +'</div>'
     +'</div>'
 
-    // 行2：変動費 ＋ 粗利（合計=uriage）
+    // ── 行2：[変動費(hendou)][粗利(arari)][スペース(akaji)] → 合計=totalW ──
     +'<div style="display:flex;align-items:flex-start;margin-bottom:6px;">'
-      +'<div style="'+axStyle+'padding-top:8px;">変動</div>'
-      +'<div style="flex:1;min-width:0;overflow:hidden;padding-left:10px;display:flex;gap:4px;align-items:flex-start;">'
+      +'<div style="'+axStyle+'">変動</div>'
+      +'<div style="flex:1;min-width:0;padding-left:8px;display:flex;gap:4px;align-items:flex-start;overflow:hidden;">'
         +makeBlk('hendou','変動費',hendou,'#fdeee8','#e0856a','#7a2e12','#e0856a')
         +(arari>0
-          ?'<div style="flex:'+fl(arari)+';min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:center;'
-            +'border-radius:4px;padding:8px 4px;min-height:60px;background:#fff;color:#3a2f80;border:1.5px dashed #7b6ed6;">'
-            +'<div style="font-size:11px;font-weight:600;">粗利</div>'
-            +'<div style="font-size:12px;font-weight:700;margin-top:2px;">'+fmt(arari)+'</div>'
-            +'<div style="font-size:10px;opacity:0.7;">'+pc(arari)+'</div>'
-          +'</div>'
+          ?'<div style="width:4px;flex-shrink:0;"></div>'
+           +'<div style="flex:'+fl(arari)+';min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:center;'
+             +'border-radius:4px;padding:8px 4px;min-height:62px;background:#fff;color:#3a2f80;border:1.5px dashed #7b6ed6;">'
+             +'<div style="font-size:11px;font-weight:600;">粗利</div>'
+             +'<div style="font-size:12px;font-weight:700;margin-top:2px;">'+fmt(arari)+'</div>'
+             +'<div style="font-size:10px;opacity:0.7;">'+pc(arari)+'</div>'
+           +'</div>'
           :'')
-        // 赤字分の空白
-        +(rieki<0?'<div style="flex:'+fl(akaji)+';min-width:0;"></div>':'')
+        // 赤字分のスペーサー（行1の赤字と幅を揃える）
+        +(akaji>0?'<div style="width:4px;flex-shrink:0;"></div><div style="flex:'+fl(akaji)+';min-width:0;"></div>':'')
       +'</div>'
     +'</div>'
 
     // 区切り線
-    +'<div style="height:1px;background:'+C.border+';margin:2px 0 6px 74px;"></div>'
+    +'<div style="height:1px;background:'+C.border+';margin:2px 0 6px 68px;"></div>'
 
-    // 行3：変動費スペーサー ＋ 固定費3列 ＋ 赤字
-    // 合計 = hendou(スペース) + kotei_h + sonota + jinken + akaji = totalW
+    // ── 行3：[スペース(hendou)][その他(sonota)][人件費(jinken)] → 合計=totalW ──
+    // 赤字なし。右端が行1の右端（売上+赤字）と揃う
     +'<div style="display:flex;align-items:flex-start;">'
-      +'<div style="'+axStyle+'padding-top:8px;">固定</div>'
-      +'<div style="flex:1;min-width:0;overflow:hidden;padding-left:10px;display:flex;gap:4px;align-items:flex-start;">'
-        +'<div style="flex:'+fl(hendou)+';min-width:0;flex-shrink:0;"></div>'
-        +makeBlk('kotei_h','固定(変動)',kotei_h,'#fef5e4','#e0b86a','#6b3d08','#e0b86a')
+      +'<div style="'+axStyle+'">固定</div>'
+      +'<div style="flex:1;min-width:0;padding-left:8px;display:flex;gap:4px;align-items:flex-start;overflow:hidden;">'
+        +'<div style="flex:'+fl(hendou)+';min-width:0;"></div>'
         +'<div style="width:4px;flex-shrink:0;"></div>'
         +makeBlk('sonota','その他',sonota,'#f2f0eb','#c0bdb5','#444','#c0bdb5')
         +'<div style="width:4px;flex-shrink:0;"></div>'
         +makeBlk('jinken','人件費',jinken,'#eeedfb','#9b94e0','#3a2f80','#9b94e0')
-        +(riekiBlk?'<div style="width:4px;flex-shrink:0;"></div>'+riekiBlk:'')
       +'</div>'
     +'</div>'
 
     // サマリー
     +'<div style="display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:1rem;padding-top:1rem;'
-      +'border-top:1px solid '+C.border+';padding-left:74px;font-size:12px;color:'+C.textS+'">'
+      +'border-top:1px solid '+C.border+';padding-left:68px;font-size:12px;color:'+C.textS+'">'
       +'<span>粗利率: <b style="color:'+C.teal+'">'+pc(arari)+'</b></span>'
       +'<span>固定費合計: <b style="color:'+C.amber+'">'+fmt(kotei_sum)+'</b></span>'
       +'<span>人件費比率: <b style="color:'+C.indigo+'">'+pc(jinken)+'</b></span>'
       +'<span>営業利益: <b style="color:'+rColor+'">'+rSign+fmt(Math.abs(rieki))+'</b></span>'
     +'</div>';
 
-  return card('<div style="overflow:hidden;">'+html+'</div>');
+  return '<div style="overflow:hidden;">'+card(html)+'</div>';
 }
 
 

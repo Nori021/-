@@ -1367,26 +1367,32 @@ function buildBlockPuzzle(active, totalRev, totalSg){
       },0);
     },0);
   }
-  var uriage = active.reduce(function(s,dd){
-    var d=S.raw['売上高合計']||S.raw['売上高'];
-    if(!d)return s;
-    var v=d[dd.month];return s+((v!=null&&v!=='')?+v:0);
-  },0)||totalRev;
+  // ── CSVの集計値を直接使って数字を統一 ─────────────────────
+  // 売上高・販管費合計・営業利益はgetMonthDataと同じCSV科目から取得
+  var uriage = totalRev; // buildTrendから渡されたCSV値をそのまま使用
 
+  // 販管費の内訳はCSVから個別取得（構造の可視化用）
   var hendou  = sumRaw(['水道光熱費','業務委託料','広告宣伝費','接待交際費','旅費交通費','荷造運賃']);
   var jinken  = sumRaw(['役員報酬','給料賃金','法定福利費','福利厚生費','研修採用費']);
-  var sonota  = sumRaw(['備品・消耗品費','支払手数料','支払報酬','修繕費','会議費','新聞図書費','諸会費','車両費','雑費']);
+  var sonota  = sumRaw(['備品・消耗品費','支払手数料','支払報酬','修繕費','会議費','新聞図書費','諸会費','車両費','雑費',
+                        '地代家賃','賃借料','リース代','通信費','保険料','租税公課','支払報酬','荷造運賃']);
+  // ただし販管費合計はCSVの合計行を優先（各科目の合算とのズレを防ぐ）
+  var sgTotal = totalSg; // buildTrendから渡されたCSV「販管費及び一般管理費合計」
+  // hendou+jinken+sonotaの合計をsgTotalに合わせてスケール補正
+  var rawSum  = hendou + jinken + sonota;
+  if(rawSum > 0 && sgTotal > 0){
+    var scale = sgTotal / rawSum;
+    hendou = Math.round(hendou * scale);
+    jinken = Math.round(jinken * scale);
+    sonota = Math.round(sonota * scale);
+  }
   var kotei_sum = jinken + sonota;
-  var arari   = uriage - hendou;
-  var rieki   = arari - kotei_sum;
-  var akaji   = Math.max(0, -rieki);
+  // 営業利益もCSVの値を直接使用
+  var rieki = active.reduce(function(s,d){return s+d.op;},0);
+  var arari = uriage - hendou; // 粗利（変動費控除後）
+  var akaji = Math.max(0, -rieki);
 
-  // 全幅の基準：変動費 + 固定費（その他＋人件費）
-  // = hendou + sonota + jinken
-  // 行1：売上高 + 赤字 = hendou + sonota + jinken（同じ全幅）
-  // 行2：変動費 + 粗利 + 赤字スペース = 同じ全幅
-  // 行3：変動費スペース + その他 + 人件費 = 同じ全幅
-  var totalW = hendou + kotei_sum; // hendou + sonota + jinken
+  var totalW = hendou + kotei_sum;
 
   function fmt(n){return Math.round(Math.abs(n)/10000).toLocaleString()+'万';}
   function pc(v){return Math.round(Math.abs(v)/uriage*100)+'%';}

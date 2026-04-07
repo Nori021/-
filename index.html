@@ -372,30 +372,33 @@ function buildTrend(){
   // ── 店舗別売上グラフ ────────────────────────────────────
   var salesActive=active.filter(function(d){return S.kpiData[d.month]&&(S.kpiData[d.month].aqxia_sales||S.kpiData[d.month].air_sales);});
   var salesChart='';
+  // 直近6ヶ月に絞る
+  if(salesActive.length>6)salesActive=salesActive.slice(-6);
   if(salesActive.length>=2){
     var maxS=Math.max.apply(null,salesActive.map(function(d){var k=S.kpiData[d.month];return (k.aqxia_sales||0)+(k.air_sales||0);}));if(maxS<=0)maxS=1;
     var sBars=salesActive.map(function(d){
       var k=S.kpiData[d.month],aq=k.aqxia_sales||0,ai=k.air_sales||0;
-      var haq=Math.max(2,Math.round(aq/maxS*120)),hai=Math.max(2,Math.round(ai/maxS*120));
+      var H=100;
+      var haq=Math.max(2,Math.round(aq/maxS*H)),hai=Math.max(2,Math.round(ai/maxS*H));
       var mo=d.month.replace(/\d{4}年/,'').replace('月','');
-      return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:36px">'
-        +'<div style="width:100%;height:120px;display:flex;align-items:flex-end;justify-content:center;gap:2px">'
-          +(aq?'<div style="width:40%;height:'+haq+'px;background:'+C.teal+';border-radius:4px 4px 0 0;position:relative">'
-            +(haq>24?'<div style="position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:7px;color:white;font-weight:700">'+Math.round(aq/10000)+'</div>':'')
+      return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:20px">'
+        +'<div style="width:100%;height:'+H+'px;display:flex;align-items:flex-end;justify-content:center;gap:2px">'
+          +(aq?'<div style="width:44%;height:'+haq+'px;background:'+C.teal+';border-radius:3px 3px 0 0;position:relative">'
+            +(haq>20?'<div style="position:absolute;bottom:2px;left:0;right:0;text-align:center;font-size:7px;color:white;font-weight:700">'+Math.round(aq/10000)+'</div>':'')
           +'</div>':'')
-          +(ai?'<div style="width:40%;height:'+hai+'px;background:'+C.blue+';border-radius:4px 4px 0 0;position:relative">'
-            +(hai>24?'<div style="position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:7px;color:white;font-weight:700">'+Math.round(ai/10000)+'</div>':'')
+          +(ai?'<div style="width:44%;height:'+hai+'px;background:'+C.blue+';border-radius:3px 3px 0 0;position:relative">'
+            +(hai>20?'<div style="position:absolute;bottom:2px;left:0;right:0;text-align:center;font-size:7px;color:white;font-weight:700">'+Math.round(ai/10000)+'</div>':'')
           +'</div>':'')
         +'</div>'
-        +'<div style="font-size:10px;color:'+C.textS+';margin-top:4px;font-weight:600">'+mo+'月</div>'
+        +'<div style="font-size:9px;color:'+C.textS+';margin-top:3px;font-weight:600">'+mo+'月</div>'
         +'</div>';
     }).join('');
-    salesChart=card(slabel('💰','店舗別売上内訳（万円）')
-      +'<div style="display:flex;gap:10px;margin-bottom:10px">'
-        +'<span style="font-size:11px;color:'+C.textM+';display:flex;align-items:center;gap:3px"><span style="display:inline-block;width:10px;height:10px;background:'+C.teal+';border-radius:2px"></span>AQXIA</span>'
-        +'<span style="font-size:11px;color:'+C.textM+';display:flex;align-items:center;gap:3px"><span style="display:inline-block;width:10px;height:10px;background:'+C.blue+';border-radius:2px"></span>AIR</span>'
+    salesChart=card(slabel('💰','売上内訳（万円）')
+      +'<div style="display:flex;gap:10px;margin-bottom:8px">'
+        +'<span style="font-size:11px;color:'+C.textM+';display:flex;align-items:center;gap:3px"><span style="display:inline-block;width:10px;height:10px;background:'+C.teal+';border-radius:2px"></span>コインランドリー</span>'
+        +'<span style="font-size:11px;color:'+C.textM+';display:flex;align-items:center;gap:3px"><span style="display:inline-block;width:10px;height:10px;background:'+C.blue+';border-radius:2px"></span>スポーツクラブ</span>'
       +'</div>'
-      +'<div style="display:flex;align-items:flex-end;gap:3px;padding:4px 0 0">'+sBars+'</div>');
+      +'<div style="display:flex;align-items:flex-end;gap:2px;padding:4px 0 0">'+sBars+'</div>');
   }
 
   // ── KPIグラフ ───────────────────────────────────────────
@@ -559,28 +562,39 @@ function buildTrend(){
 
   var remColor=remainM!=null?(remainM>=6?C.green:remainM>=3?C.amber:C.red):C.textX;
   return '<div>'
-    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px">'
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:16px">'
+    +'<div style="background:'+C.surf+';border-radius:12px;padding:14px 16px;border:1px solid '+C.border+'">'
+    +'<div style="font-size:10px;font-weight:700;color:'+C.teal+';letter-spacing:.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid '+C.border+';">💰 財務</div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px;">'
     +kTile('年度累計売上',fmtM(totalRev),C.teal,(active[0]?active[0].month:'')+'〜'+(last?last.month:''))
-    +kTile('年度累計純損益',fmtM(totalNet),totalNet>=0?C.green:C.red)
-    +kTile('直近月 会員数',lastKpi.members_end?lastKpi.members_end+'名':'—',C.indigo,memMs.length?memMs[memMs.length-1].month+'時点':'KPIから取得')
-    +kTile('月平均販管費',fmtM(avgSg),C.amber,active.length+'ヶ月平均')
-    +'</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px">'
     +kTile('年間粗利',fmtM(totalGp),C.teal,'粗利率 '+Math.round(totalRev>0?totalGp/totalRev*100:0)+'%')
     +kTile('年間営業利益',fmtM(totalOp),totalOp>=0?C.green:C.red,'営業利益率 '+Math.round(totalRev>0?totalOp/totalRev*100:0)+'%')
+    +kTile('年度累計純損益',fmtM(totalNet),totalNet>=0?C.green:C.red)
     +kTile('損益分岐点',totalOp>=0?'達成済':fmtM(totalRev-totalOp),totalOp>=0?C.green:C.amber,totalOp<0?'黒字化に必要な累計売上':'黒字達成')
+    +'</div>'
+    +'</div>'
+    +'<div style="background:'+C.surf+';border-radius:12px;padding:14px 16px;border:1px solid '+C.border+'">'
+    +'<div style="font-size:10px;font-weight:700;color:'+C.indigo+';letter-spacing:.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid '+C.border+';">👥 会員・KPI</div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px;">'
+    +kTile('直近月 会員数',lastKpi.members_end?lastKpi.members_end+'名':'—',C.indigo,memMs.length?memMs[memMs.length-1].month+'時点':'KPIから取得')
+    +kTile('月平均販管費',fmtM(avgSg),C.amber,active.length+'ヶ月平均')
     +kTile('人件費率',totalRev>0?Math.round(totalJinken/totalRev*100)+'%':'—',C.indigo,'売上に対する人件費比率')
     +'</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">'
+    +'</div>'
+    +'<div style="background:'+C.surf+';border-radius:12px;padding:14px 16px;border:1px solid '+C.border+'">'
+    +'<div style="font-size:10px;font-weight:700;color:'+C.blue+';letter-spacing:.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid '+C.border+';">🏦 資金繰り</div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px;">'
     +kTile('直近残高',lastBal!=null?fmtM(lastBal):'—',lastBal!=null?(lastBal>=0?C.blue:C.red):C.textX,lastBalM?lastBalM+'末時点':'各月に手入力')
     +kTile('残存月数',remainM!=null?(remainM+'ヶ月'):'—',remColor,remainM!=null?'残高÷月平均販管費':'残高入力後に計算')
     +kTile('大型支出 計画中',allExp.filter(function(e){return e.type==='plan';}).length+'件',C.purple)
     +kTile('大型支出 実績',allExp.filter(function(e){return e.type==='actual';}).length+'件',C.orange)
     +'</div>'
+    +'</div>'
+    +'</div>'
     +'<div style="margin-bottom:14px">'
       +tabBar
       +(tTab==='pl'
-        ?card(mainChart)+'<div style="margin-top:14px">'+card(balChart)+'</div>'+(salesChart?'<div style="margin-top:14px">'+salesChart+'</div>':'')
+        ?card(mainChart)+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">'+card(balChart)+(salesChart||'<div></div>')+'</div>'
         :tTab==='kpi'?kpiCharts
         :buildBlockPuzzle(active,totalRev,totalSg))
     +'</div>'
@@ -1710,4 +1724,3 @@ render();
 if(S.gasConnected)loadGas();
 </script>
 </body>
-</html>

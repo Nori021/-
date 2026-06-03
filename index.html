@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>経営ダッシュボード 2025年度</title>
+<title>経営ダッシュボード</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
@@ -22,6 +22,35 @@ input,textarea,button,select{font-family:inherit}
 <div id="app"><div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:12px"><div style="font-size:32px">📊</div><div style="font-size:16px;font-weight:700;color:#334155">読み込み中...</div></div></div>
 <script>
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
+// ── 年度（5月始まり） ────────────────────────────────────────
+var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱う
+function curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
+function fyLabel(fy){return fy+'年度';}
+function fyRange(fy){return fy+'年5月〜'+(fy+1)+'年4月';}
+// GAS保存キーの接頭辞（2025年度は接頭辞なし＝既存データ互換）
+function pfx(fy){return fy===BASE_FY?'':('FY'+fy+'_');}
+function gkey(fy,m){return pfx(fy)+m;}
+function parseGkey(k){var mm=/^FY(\d{4})_([\s\S]+)$/.exec(k);return mm?{fy:+mm[1],m:mm[2]}:{fy:BASE_FY,m:k};}
+// CSV等の単一スロット保存に年度タグを付けて、再読込時に正しい年度へ復元する
+function tagName(fy,name){return '[FY'+fy+'] '+(name||'');}
+function parseName(s){var mm=/^\[FY(\d{4})\]\s*([\s\S]*)$/.exec(s||'');return mm?{fy:+mm[1],name:mm[2]}:{fy:null,name:s};}
+// 年度ごとに分離して保持するフィールド
+var YEAR_FIELDS=['kpiData','reports','finNotes','formAnswers','csv','csvName','raw','bsData','bsName','bizCsv','bizCsvName'];
+function yearDefaults(){return{kpiData:{},reports:{},finNotes:{},formAnswers:{},csv:'',csvName:'CSVをアップロードしてください',raw:{},bsData:{},bsName:'残高試算表をアップロード',bizCsv:null,bizCsvName:'部門別CSVをアップロード'};}
+function ensureYear(fy){if(!S.years[fy])S.years[fy]=yearDefaults();return S.years[fy];}
+function stashActive(){var b=ensureYear(S.fy);YEAR_FIELDS.forEach(function(f){b[f]=S[f];});}
+function activateYear(fy){var b=ensureYear(fy);S.fy=fy;YEAR_FIELDS.forEach(function(f){S[f]=b[f];});}
+function switchYear(fy){if(fy===S.fy)return;stashActive();S.selMonth='5月';S.view='trend';S.sec='finance';S.repMode='view';S.kpiEditMode=null;S.finEditPl=null;activateYear(fy);render();}
+// 全年度の財務メモを1つのオブジェクトに統合（GASは1スロット保存のため）
+function allFinNotes(){stashActive();var out={};Object.keys(S.years).forEach(function(fy){var fn=S.years[fy].finNotes||{};Object.keys(fn).forEach(function(m){out[gkey(+fy,m)]=fn[m];});});return out;}
+// 全年度のフォーム回答を統合
+function allFormAnswers(){stashActive();var out={};Object.keys(S.years).forEach(function(fy){var fa=S.years[fy].formAnswers||{};Object.keys(fa).forEach(function(m){out[gkey(+fy,m)]=fa[m];});});return out;}
+// GASから取得した月キー辞書を年度バケットへ振り分け
+function distribute(obj,field){if(!obj)return;Object.keys(obj).forEach(function(k){var p=parseGkey(k);ensureYear(p.fy)[field][p.m]=obj[k];});}
+// 選択中の年度バケットへformAnswersをマージ
+function mergeFormAnswers(obj){distribute(obj,'formAnswers');S.formAnswers=ensureYear(S.fy).formAnswers;}
+// 選択できる年度の上限
+function maxFY(){var ys=[BASE_FY,curFY()+1].concat(Object.keys(S.years||{}).map(Number));return Math.max.apply(null,ys);}
 var IQS=[
   {key:'campaign',q:'今月実施したキャンペーン・施策は？',hint:'例：新春キャンペーン'},
   {key:'next_plan',q:'来月のキャンペーン・方針は？',hint:'例：3ヶ月応援プランを継続'},
@@ -74,6 +103,7 @@ var BIZS=[
 var BIZ_EXPENSE_KEYS=['売上','仕入・原価','人件費','家賃','光熱費','その他経費'];
 
 var S={
+  fy:curFY(),years:{},
   csv:'',csvName:'CSVをアップロードしてください',raw:{},
   kpiData:{},reports:{},finNotes:{},kpiEditMode:null,
   kpiMsg:'',kpiLoading:false,
@@ -333,7 +363,12 @@ function buildHeader(){
     +'<div style="display:flex;align-items:center;padding:0 18px;height:52px;border-bottom:1px solid '+C.border+';gap:10px">'
     +'<div style="display:flex;align-items:center;gap:8px;padding-right:14px;border-right:1px solid '+C.border+';flex-shrink:0">'
     +'<div style="width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,'+C.teal+','+C.blue+');display:flex;align-items:center;justify-content:center;font-size:14px">📊</div>'
-    +'<div><div style="font-size:13px;font-weight:800;color:'+C.text+'">経営ダッシュボード</div><div style="font-size:9px;color:'+C.textX+'">2025年度</div></div></div>'
+    +'<div><div style="font-size:13px;font-weight:800;color:'+C.text+'">経営ダッシュボード</div>'
+    +'<div style="display:flex;align-items:center;gap:3px;margin-top:1px">'
+    +'<button id="fy-prev" title="前の年度" style="border:1px solid '+C.border+';background:'+C.white+';border-radius:5px;cursor:pointer;font-size:9px;color:'+C.textS+';padding:1px 5px;line-height:1.3">◀</button>'
+    +'<span style="font-size:10px;font-weight:800;color:'+C.teal+';min-width:46px;text-align:center">'+fyLabel(S.fy)+'</span>'
+    +'<button id="fy-next" title="次の年度" style="border:1px solid '+C.border+';background:'+C.white+';border-radius:5px;cursor:pointer;font-size:9px;color:'+C.textS+';padding:1px 5px;line-height:1.3">▶</button>'
+    +'</div></div></div>'
     +'<div id="csv-drop" style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;border:1.5px dashed '+C.border+';cursor:pointer;flex-shrink:0">'
     +'<input id="csv-input" type="file" accept=".csv" style="display:none"><span style="font-size:13px">📂</span>'
     +'<div><div style="font-size:10px;font-weight:700;color:'+C.teal+'">損益CSV</div><div style="font-size:9px;color:'+C.textX+';max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(S.csvName)+'</div></div></div>'
@@ -350,7 +385,7 @@ function buildHeader(){
     +'</div></div>'
     +settingsHtml
     +'<div style="display:flex;align-items:stretch;overflow-x:auto;padding-left:6px;background:'+C.white+'">'
-    +'<button class="mtab" data-view="trend" style="padding:0 14px;border:none;cursor:pointer;font-size:12px;font-weight:'+(S.view==='trend'?700:500)+';border-bottom:2.5px solid '+(S.view==='trend'?C.teal:'transparent')+';background:transparent;color:'+(S.view==='trend'?C.teal:C.textS)+';white-space:nowrap;flex-shrink:0;height:44px">2025年度 全体</button>'
+    +'<button class="mtab" data-view="trend" style="padding:0 14px;border:none;cursor:pointer;font-size:12px;font-weight:'+(S.view==='trend'?700:500)+';border-bottom:2.5px solid '+(S.view==='trend'?C.teal:'transparent')+';background:transparent;color:'+(S.view==='trend'?C.teal:C.textS)+';white-space:nowrap;flex-shrink:0;height:44px">'+fyLabel(S.fy)+' 全体</button>'
     +tabs+'</div></header>';
 }
 
@@ -1237,7 +1272,7 @@ function buildBusiness(){
       +'<div style="font-size:16px;font-weight:800;color:'+C.text+';margin-bottom:8px">事業別データがありません</div>'
       +'<div style="font-size:13px;color:'+C.textS+';line-height:1.9;margin-bottom:24px">'
         +'マネーフォワード → 会計 → レポート → <b>損益計算書（部門別集計表）</b><br>'
-        +'対象期間: <b>2025年5月〜2026年4月</b> でCSVダウンロード後<br>'
+        +'対象期間: <b>'+fyRange(S.fy)+'</b> でCSVダウンロード後<br>'
         +'ヘッダーの「🏢 部門別CSV」からアップロードしてください'
       +'</div>'
       +btnP("btn-open-biz","🏢 部門別CSVをアップロード","padding:11px 26px;font-size:14px")
@@ -1564,6 +1599,9 @@ function bindEvents(){
   if(kd){kd.addEventListener('click',function(){ki.click();});kd.addEventListener('dragover',function(e){e.preventDefault();});kd.addEventListener('drop',function(e){e.preventDefault();handleKpi(e.dataTransfer.files[0]);});}
   if(ki)ki.addEventListener('change',function(e){handleKpi(e.target.files[0]);});
   var bs=document.getElementById('btn-settings');if(bs)bs.addEventListener('click',function(){S.showSettings=!S.showSettings;render();});
+  var _mx=maxFY();
+  var fyp=document.getElementById('fy-prev');if(fyp)fyp.addEventListener('click',function(){if(S.fy>BASE_FY)switchYear(S.fy-1);});
+  var fyn=document.getElementById('fy-next');if(fyn)fyn.addEventListener('click',function(){if(S.fy<_mx)switchYear(S.fy+1);});
 
   var boc=document.getElementById('btn-open-csv');if(boc)boc.addEventListener('click',function(){document.getElementById('csv-input').click();});
   var bgbs=document.getElementById('btn-goto-bs');
@@ -1600,7 +1638,7 @@ function bindEvents(){
     });
     S.kpiData=Object.assign({},S.kpiData);S.kpiData[S.selMonth]=kpi;
     
-    gasPost({action:'save_kpi',month:S.selMonth,data:kpi});
+    gasPost({action:'save_kpi',month:gkey(S.fy,S.selMonth),data:kpi});
     S.kpiEditMode=null;render();
   });
 
@@ -1619,7 +1657,7 @@ function bindEvents(){
     S.reports=Object.assign({},S.reports);
     delete S.reports[S.selMonth];
     S.repMode='view';
-    gasPost({action:'delete_report',month:S.selMonth});
+    gasPost({action:'delete_report',month:gkey(S.fy,S.selMonth)});
     render();
   });
   var bre=document.getElementById('btn-rep-edit');if(bre)bre.addEventListener('click',function(){
@@ -1635,8 +1673,8 @@ function bindEvents(){
       S.repMode='edit';render();
       fetch(S.gasUrl+'?type=ians').then(function(r){return r.json();}).then(function(j){
         if(j&&j.ok&&j.formAnswers){
-          S.formAnswers=j.formAnswers;
-          if(j.formAnswers[S.selMonth]){S.iAns=j.formAnswers[S.selMonth];render();}
+          mergeFormAnswers(j.formAnswers);
+          if(S.formAnswers[S.selMonth]){S.iAns=S.formAnswers[S.selMonth];render();}
         }
       }).catch(function(){});
     }
@@ -1644,9 +1682,9 @@ function bindEvents(){
   var brcl=document.getElementById('btn-rep-close');if(brcl)brcl.addEventListener('click',function(){S.repMode='view';render();});
   var brca=document.getElementById('btn-rep-cancel');if(brca)brca.addEventListener('click',function(){S.repMode='view';render();});
   var bse=document.getElementById('btn-save-edit');
-  if(bse)bse.addEventListener('click',function(){var ta=document.getElementById('draft-area');if(!ta)return;document.querySelectorAll('.edit-ans-inp').forEach(function(el){if(el.dataset.key)S.iAns[el.dataset.key]=el.value;});S.formAnswers=Object.assign({},S.formAnswers);S.formAnswers[S.selMonth]=S.iAns;gasPost({action:'save_ians',month:S.selMonth,data:S.iAns});var d={text:ta.value,savedAt:new Date().toLocaleDateString('ja-JP'),iAns:S.iAns};S.reports=Object.assign({},S.reports);S.reports[S.selMonth]=d;gasPost({action:'save_report',month:S.selMonth,data:d});S.repMode='view';render();});
+  if(bse)bse.addEventListener('click',function(){var ta=document.getElementById('draft-area');if(!ta)return;document.querySelectorAll('.edit-ans-inp').forEach(function(el){if(el.dataset.key)S.iAns[el.dataset.key]=el.value;});S.formAnswers=Object.assign({},S.formAnswers);S.formAnswers[S.selMonth]=S.iAns;gasPost({action:'save_ians',month:gkey(S.fy,S.selMonth),data:S.iAns});var d={text:ta.value,savedAt:new Date().toLocaleDateString('ja-JP'),iAns:S.iAns};S.reports=Object.assign({},S.reports);S.reports[S.selMonth]=d;gasPost({action:'save_report',month:gkey(S.fy,S.selMonth),data:d});S.repMode='view';render();});
   var bsg=document.getElementById('btn-save-gen');
-  if(bsg)bsg.addEventListener('click',function(){var d={text:S.genResult,savedAt:new Date().toLocaleDateString('ja-JP'),iAns:S.iAns};S.reports=Object.assign({},S.reports);S.reports[S.selMonth]=d;gasPost({action:'save_report',month:S.selMonth,data:d});S.repMode='view';S.sec='report';render();});
+  if(bsg)bsg.addEventListener('click',function(){var d={text:S.genResult,savedAt:new Date().toLocaleDateString('ja-JP'),iAns:S.iAns};S.reports=Object.assign({},S.reports);S.reports[S.selMonth]=d;gasPost({action:'save_report',month:gkey(S.fy,S.selMonth),data:d});S.repMode='view';S.sec='report';render();});
   // フォームの入力内容をS.iAnsに保存するヘルパー
   function saveFormState(){
     document.querySelectorAll('.rep-form-input').forEach(function(el){
@@ -1672,7 +1710,7 @@ function bindEvents(){
         var note=Object.assign({},S.finNotes[S.selMonth]||{});
         note.memo=ta.value;
         S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;
-        gasPost({action:'save_finance_notes',data:S.finNotes});
+        gasPost({action:'save_finance_notes',data:allFinNotes()});
         if(status)status.textContent='✅ 保存しました';
         setTimeout(function(){if(status)status.textContent='自動保存されます';},2000);
       },1500);
@@ -1701,7 +1739,7 @@ function bindEvents(){
     });
     note.pl_temp=pt;
     S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;
-    gasPost({action:'save_finance_notes',data:S.finNotes});
+    gasPost({action:'save_finance_notes',data:allFinNotes()});
     S.finEditPl=null;render();
   });
 
@@ -1713,7 +1751,7 @@ function bindEvents(){
     if(inp){var v=inp.value.trim();note.balance=v!==''?parseFloat(v):null;}
     if(inpT){var vt=inpT.value.trim();note.bal_temp=vt!==''?parseFloat(vt):null;}
     S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;
-    gasPost({action:'save_finance_notes',data:S.finNotes});render();
+    gasPost({action:'save_finance_notes',data:allFinNotes()});render();
   });
   var badd=document.getElementById('btn-add-expense');
   if(badd)badd.addEventListener('click',function(){var note=Object.assign({},S.finNotes[S.selMonth]||{});note.expenses=(note.expenses||[]).concat([{label:'',amount:'',date:'',type:'plan'}]);S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;render();});
@@ -1725,7 +1763,7 @@ function bindEvents(){
       exps.splice(idx,1);
       note.expenses=exps;
       S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;
-      gasPost({action:'save_finance_notes',data:S.finNotes});
+      gasPost({action:'save_finance_notes',data:allFinNotes()});
       render();
     });
   });
@@ -1737,7 +1775,7 @@ function bindEvents(){
     var dates=[].slice.call(document.querySelectorAll('.exp-date'));
     var note=Object.assign({},S.finNotes[S.selMonth]||{});
     note.expenses=labels.map(function(_,i){return{type:types[i]?types[i].value:'plan',label:labels[i]?labels[i].value.trim():'',amount:amounts[i]&&amounts[i].value.trim()?parseFloat(amounts[i].value):null,date:dates[i]?dates[i].value:''};}).filter(function(e){return e.label;});
-    S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;gasPost({action:'save_finance_notes',data:S.finNotes});render();
+    S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;gasPost({action:'save_finance_notes',data:allFinNotes()});render();
   });
 }
 
@@ -1768,7 +1806,7 @@ async function handleBsCsv(file){
   // 全体タブのB/Sビューに遷移
   S.view='trend';
   S.trendTab='bs';
-  if(S.gasConnected){gasPost({action:'save_bs_data',bsName:S.bsName,rawData:text});}
+  if(S.gasConnected){gasPost({action:'save_bs_data',bsName:tagName(S.fy,S.bsName),rawData:text});}
   render();
 }
 
@@ -1777,7 +1815,7 @@ async function handleCsv(file){
   S.csvName=file.name;var ab=await file.arrayBuffer();var text;
   try{text=new TextDecoder('shift-jis').decode(new Uint8Array(ab));}catch(e){text=new TextDecoder('utf-8').decode(new Uint8Array(ab));}
   S.csv=text;S.raw=parseCSV(text);
-  if(S.gasConnected){S.gasStatus='CSV同期中...';render();try{await gasPost({action:'save_csv',csvName:S.csvName,rawData:text});S.gasStatus='✅ CSV同期完了';}catch(e){S.gasStatus='⚠️ CSV同期失敗';}setTimeout(function(){if(S.gasStatus.includes('CSV')){S.gasStatus='';render();}},3000);}
+  if(S.gasConnected){S.gasStatus='CSV同期中...';render();try{await gasPost({action:'save_csv',csvName:tagName(S.fy,S.csvName),rawData:text});S.gasStatus='✅ CSV同期完了';}catch(e){S.gasStatus='⚠️ CSV同期失敗';}setTimeout(function(){if(S.gasStatus.includes('CSV')){S.gasStatus='';render();}},3000);}
   render();
 }
 
@@ -1793,7 +1831,7 @@ async function handleBizCsv(file){
   S.bizCsv=parsed;
   S.bizCsvRaw=text;
   S.trendTab='biz';
-  if(S.gasConnected){gasPost({action:'save_biz_csv',bizCsvName:S.bizCsvName,rawData:text});}
+  if(S.gasConnected){gasPost({action:'save_biz_csv',bizCsvName:tagName(S.fy,S.bizCsvName),rawData:text});}
   render();
 }
 
@@ -1861,7 +1899,7 @@ async function handleKpi(file){
     }
     S.kpiData=Object.assign({},S.kpiData);S.kpiData[S.selMonth]=kpi;
     
-    gasPost({action:'save_kpi',month:S.selMonth,data:kpi});
+    gasPost({action:'save_kpi',month:gkey(S.fy,S.selMonth),data:kpi});
     S.kpiMsg='✅ '+S.selMonth+'のKPIを取り込みました';S.sec='kpi';
   }catch(e){S.kpiMsg='⚠️ エラー: '+e.message;console.error('KPI error:',e);}
   S.kpiLoading=false;render();
@@ -1878,7 +1916,7 @@ async function handleRepFile(file){
     var d={text:text,savedAt:new Date().toLocaleDateString('ja-JP'),source:file.name};
     S.reports=Object.assign({},S.reports);S.reports[S.selMonth]=d;
     
-    gasPost({action:'save_report',month:S.selMonth,data:d});S.repMode='view';render();
+    gasPost({action:'save_report',month:gkey(S.fy,S.selMonth),data:d});S.repMode='view';render();
   }catch(e){if(msgEl)msgEl.innerHTML='<div style="margin-top:10px;padding:10px;background:#fef2f2;border-radius:8px;font-size:12px;color:#dc2626">⚠️ '+esc(e.message)+'</div>';}
 }
 
@@ -1890,7 +1928,7 @@ async function submitForm(){
   });
   S.iAns=ans;
   S.formAnswers=Object.assign({},S.formAnswers);S.formAnswers[S.selMonth]=ans;
-  await gasPost({action:'save_ians',month:S.selMonth,data:ans});
+  await gasPost({action:'save_ians',month:gkey(S.fy,S.selMonth),data:ans});
   S.genLoading=true;S.genResult='';render();
 
   var m=S.selMonth,kpi=S.kpiData[m]||{},a=ans;
@@ -1979,12 +2017,15 @@ async function loadGas(){
   try{
     var r=await fetch(S.gasUrl+'?type=all'),j=await r.json();
     if(j&&j.ok){
-      if(j.reports)S.reports=j.reports;if(j.kpi)S.kpiData=j.kpi;
-      if(j.financeNotes)S.finNotes=j.financeNotes;
-      if(j.formAnswers)S.formAnswers=j.formAnswers;
-      if(j.csvData&&j.csvData.rawData){S.csv=j.csvData.rawData;S.csvName=j.csvData.csvName||'（クラウドから）';S.raw=parseCSV(S.csv);}
-      if(j.bsData&&j.bsData.rawData){S.bsData=parseBsCSV(j.bsData.rawData);S.bsName=j.bsData.bsName||'（クラウドから）';}
-      if(j.bizCsvData&&j.bizCsvData.rawData){S.bizCsv=parseBizCSV(j.bizCsvData.rawData);S.bizCsvName=j.bizCsvData.bizCsvName||'（クラウドから）';}
+      S.years={};
+      distribute(j.reports,'reports');
+      distribute(j.kpi,'kpiData');
+      distribute(j.financeNotes,'finNotes');
+      distribute(j.formAnswers,'formAnswers');
+      if(j.csvData&&j.csvData.rawData){var pc=parseName(j.csvData.csvName);var bc=ensureYear(pc.fy||BASE_FY);bc.csv=j.csvData.rawData;bc.csvName=pc.name||'（クラウドから）';bc.raw=parseCSV(bc.csv);}
+      if(j.bsData&&j.bsData.rawData){var pb=parseName(j.bsData.bsName);var bb=ensureYear(pb.fy||BASE_FY);bb.bsData=parseBsCSV(j.bsData.rawData);bb.bsName=pb.name||'（クラウドから）';}
+      if(j.bizCsvData&&j.bizCsvData.rawData){var pz=parseName(j.bizCsvData.bizCsvName);var bz=ensureYear(pz.fy||BASE_FY);bz.bizCsv=parseBizCSV(j.bizCsvData.rawData);bz.bizCsvName=pz.name||'（クラウドから）';}
+      ensureYear(S.fy);activateYear(S.fy);
       S.gasStatus='✅ 同期完了 ('+new Date().toLocaleTimeString('ja-JP')+')';
     }else{S.gasStatus='⚠️ '+(j&&j.error||'エラー');}
   }catch(e){S.gasStatus='⚠️ '+e.message;}

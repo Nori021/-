@@ -136,14 +136,29 @@ function csvSplit(line){
   for(var i=0;i<line.length;i++){var c=line[i];if(c==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else{inQ=!inQ;}}else if(c===','&&!inQ){r.push(cur.trim());cur='';}else{cur+=c;}}
   r.push(cur.trim());return r;
 }
+// CSVの月見出しを正規化（"2026年5月"/"05月"/"2026/05"/"5月" → "5月"）
+function csvMonthLabel(s){
+  if(s==null)return null;
+  s=String(s).trim();
+  var m=/(?:\d{2,4}\s*年\s*)?0*(\d{1,2})\s*月/.exec(s);
+  if(!m){var m2=/^\d{4}\s*[\/\-\.]\s*0*(\d{1,2})(?:\s*[\/\-\.]\s*\d{1,2})?$/.exec(s);if(m2)m=m2;}
+  if(!m)return null;
+  var n=parseInt(m[1],10);
+  return(n>=1&&n<=12)?(n+'月'):null;
+}
 function parseCSV(text){
   if(!text||!text.trim())return{};
   var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
-  var hdrLine=null;
-  for(var i=0;i<lines.length;i++){if(lines[i].indexOf('5月')>=0){hdrLine=lines[i];break;}}
-  if(!hdrLine)return{};
+  // ヘッダー行＝月ラベルが最も多く並ぶ行を採用（年付き表記にも対応）
+  var hdrLine=null,bestCount=0;
+  for(var i=0;i<lines.length;i++){
+    var cells=csvSplit(lines[i]),c=0;
+    for(var k=0;k<cells.length;k++){if(csvMonthLabel(cells[k]))c++;}
+    if(c>bestCount){bestCount=c;hdrLine=lines[i];}
+  }
+  if(!hdrLine||bestCount<1)return{};
   var hdr=csvSplit(hdrLine),midx={};
-  for(var i=0;i<hdr.length;i++){if(FM.indexOf(hdr[i])>=0)midx[hdr[i]]=i;}
+  for(var i=0;i<hdr.length;i++){var lbl=csvMonthLabel(hdr[i]);if(lbl&&FM.indexOf(lbl)>=0&&midx[lbl]==null)midx[lbl]=i;}
   if(!Object.keys(midx).length)return{};
   var data={};
   lines.forEach(function(line){

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>経営ダッシュボード v7</title>
+<title>経営ダッシュボード v8</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -24,8 +24,9 @@ input,textarea,button,select{font-family:inherit}
 <script>
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
-var APP_VERSION='v7';
-var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱うfunction curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
+var APP_VERSION='v8';
+var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱う
+function curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
 function fyLabel(fy){return fy+'年度';}
 function fyRange(fy){return fy+'年5月〜'+(fy+1)+'年4月';}
 // GAS保存キーの接頭辞（2025年度は接頭辞なし＝既存データ互換）

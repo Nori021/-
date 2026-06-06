@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>経営ダッシュボード v8</title>
+<title>経営ダッシュボード v10</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -24,7 +24,7 @@ input,textarea,button,select{font-family:inherit}
 <script>
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
-var APP_VERSION='v8';
+var APP_VERSION='v10';
 var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱う
 function curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
 function fyLabel(fy){return fy+'年度';}
@@ -2035,6 +2035,8 @@ async function handleBizCsv(file){
   catch(e){try{text=new TextDecoder('shift-jis').decode(new Uint8Array(ab));}catch(e2){text=new TextDecoder('utf-8').decode(new Uint8Array(ab));}}
   var parsed=parseBizCSV(text);
   if(!parsed){S.bizMsg='⚠️ 部門別集計表として読み取れませんでした（「スポーツクラブ」を含む列が必要です）';render();return;}
+  var hasPL=['gym','stay','laundry','common','total'].some(function(k){var d=parsed[k]||{};return (d['売上高']||0)||(d['営業利益']||0)||(d['販売費及び一般管理費合計']||0);});
+  if(!hasPL){S.bizMsg='⚠️ これは貸借対照表のようです。出費を見るには「損益計算書（部門別集計表）」を選んでアップロードしてください';render();return;}
   var note=Object.assign({},S.finNotes[month]||{});
   note.bizDept=parsed;
   S.finNotes=Object.assign({},S.finNotes);S.finNotes[month]=note;
@@ -2165,6 +2167,20 @@ async function submitForm(){
   // コインランドリー実績を自動でまとめる
   var _lndDefs=[['laundry_sales','売上合計','man'],['laundry_dryer_m','乾燥機M売上','man'],['laundry_dryer_l','乾燥機L売上','man'],['laundry_washer','洗濯乾燥機XL売上','man'],['laundry_changer','両替機(抜取)','man'],['laundry_util','全体稼働率','pct'],['laundry_util_m','稼働率M','pct'],['laundry_util_l','稼働率L','pct'],['laundry_util_xl','稼働率XL','pct'],['laundry_labor','人件費','yen'],['laundry_op','営業利益','man']];
   var _lndLines=_lndDefs.filter(function(f){return kpi[f[0]]!=null&&kpi[f[0]]!=='';}).map(function(f){return f[1]+': '+fmtKpi(kpi[f[0]],f[2]);}).join(' / ');
+  // 部門別（その月の損益）を自動でまとめる
+  var _bizDept=(S.finNotes[m]||{}).bizDept;
+  var _bizCostItems=["役員報酬","給料賃金","法定福利費","福利厚生費","研修採用費","業務委託料","水道光熱費","広告宣伝費","通信費","地代家賃","賃借料","リース代","支払手数料","修繕費","保険料","租税公課","支払報酬","接待交際費","旅費交通費","荷造運賃","備品・消耗品費","会議費","新聞図書費","諸会費","車両費","雑費"];
+  var _bizLines='';
+  if(_bizDept){
+    _bizLines=[['gym','スポーツクラブ'],['laundry','コインランドリー'],['stay','宿泊施設'],['common','共通費']].map(function(p){
+      var d=_bizDept[p[0]]||{};
+      var sales=d['売上高']||0;
+      var cost=d['販売費及び一般管理費合計']||_bizCostItems.reduce(function(s,k){return s+(d[k]||0);},0);
+      var profit=d['営業利益']||(sales-cost);
+      if(!sales&&!cost&&!profit)return null;
+      return '  '+p[1]+': 売上'+fmtY(sales)+' / 出費'+fmtY(cost)+' / 営業利益'+fmtY(profit);
+    }).filter(Boolean).join(nl);
+  }
 
   var prompt='あなたは経営コンサルタントです。以下のデータをもとに、スタッフ全員が読みやすい月次経営報告書を日本語マークダウンで作成してください。'+nl+nl
     +'対象月: '+m+nl
@@ -2177,6 +2193,7 @@ async function submitForm(){
     +'  '+(_aqxiaLines||'KPIデータなし')+nl
     +'■ コインランドリー実績:'+nl
     +'  '+(_lndLines||'データなし')+nl
+    +(_bizLines?'■ 部門別収支（'+m+'）:'+nl+_bizLines+nl:'')
     +'ハイライト: '+(kpi.highlights||'なし')+nl
     +'ローライト: '+(kpi.lowlights||'なし')+nl
     +'各事業の進捗（プール工事・ランドリーのシステム導入・宿泊施設の工事 など）: '+(a.biz||'なし')+nl
@@ -2194,6 +2211,7 @@ async function submitForm(){
     +'- キャンペーンや施策は経営者から提供されていないので、勝手にキャンペーン名を作らないこと。施策にふれる場合はKPIの数値変化から推測される範囲にとどめる'+nl
     +'- コインランドリーのセクションは、機種別の売上・稼働率と人件費・営業利益にふれること'+nl
     +'- 各事業の進捗セクションは、入力された進捗（プール工事・ランドリーのシステム導入・宿泊施設の工事など）を整理して記述すること。新規事業の話にはしないこと'+nl
+    +'- 部門別収支が提供されている場合は、②売上・財務状況の中で各部門（スポーツクラブ・コインランドリー・宿泊・共通費）の出費と収支に簡潔に触れること'+nl
     +'- 全体で1500〜2200文字程度'+nl+nl
     +'【構成】この順で作成:'+nl
     +'# ① 今月のサマリー'+nl

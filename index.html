@@ -281,6 +281,23 @@ function getMonthData(m){
   function g(k){var d=S.raw[k];if(!d)return 0;var v=d[m];return(v!=null&&v!=='')?Number(v):0;}
   return{month:m,rev:g('売上高'),op:g('営業利益'),net:g('当期純利益'),sg:g('販売費及び一般管理費合計'),eco:g('経常利益')};
 }
+// 手入力修正（finNotes[m].pl_temp）を反映した実効値。月別財務タブと同じロジックで全体ビューにも使う
+var EFF_SG_KEYS=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費'];
+function getEffData(m){
+  var md=getMonthData(m);
+  var note=S.finNotes[m]||{},pt=note.pl_temp||{};
+  function gRaw(key){var d=S.raw[key];if(!d)return 0;var v=d[m];return(v!=null&&v!=='')?(+v)||0:0;}
+  function gPt(key){var e=pt[key];if(e==null)return null;if(typeof e==='object')return e;return{v:e,confirmed:false};}
+  function eff(key){var p=gPt(key);return(p!=null&&p.v!=null)?p.v:gRaw(key);}
+  var calcSg=0;EFF_SG_KEYS.forEach(function(k){calcSg+=eff(k);});
+  var hasAnyItem=EFF_SG_KEYS.some(function(k){return eff(k)!==0;});
+  var effSg=hasAnyItem?calcSg:md.sg;
+  var effRev=eff('売上高')||md.rev;
+  var effOp=md.op!==0?md.op+(effSg-md.sg)*-1+(effRev-md.rev):effRev-effSg;
+  var effEco=md.eco!==0?md.eco+(effSg-md.sg)*-1+(effRev-md.rev):effOp;
+  var effNet=effEco+(md.net-md.eco);
+  return{month:m,rev:effRev,op:effOp,net:effNet,sg:effSg,eco:effEco};
+}
 
 function dots(){return'<span style="display:inline-flex;gap:3px"><span style="width:5px;height:5px;border-radius:50%;background:'+C.teal+';animation:blink 1.2s 0s infinite"></span><span style="width:5px;height:5px;border-radius:50%;background:'+C.teal+';animation:blink 1.2s .2s infinite"></span><span style="width:5px;height:5px;border-radius:50%;background:'+C.teal+';animation:blink 1.2s .4s infinite"></span></span>';}
 function badge(t,c){return'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:'+c+'22;color:'+c+';border:1px solid '+c+'44">'+esc(t)+'</span>';}
@@ -413,7 +430,7 @@ function buildHeader(){
       +'</div>';
   }
   var tabs=FM.map(function(m){
-    var d=getMonthData(m),iC=(S.view===m);
+    var d=getEffData(m),iC=(S.view===m);
     var hD=d.rev>0||d.sg>0,hR=!!(S.reports[m]&&S.reports[m].text),hK=!!S.kpiData[m];
     return'<button class="mtab" data-month="'+m+'" style="padding:0 12px;border:none;cursor:pointer;font-size:12px;font-weight:'+(iC?700:hD?500:400)+';border-bottom:2.5px solid '+(iC?C.teal:'transparent')+';background:transparent;color:'+(iC?C.teal:hD?C.textS:C.textX)+';white-space:nowrap;flex-shrink:0;height:44px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px">'
       +'<div style="display:flex;align-items:center;gap:2px">'+m+(hR?'<div style="width:4px;height:4px;border-radius:50%;background:'+C.green+'"></div>':'')+(hK?'<div style="width:4px;height:4px;border-radius:50%;background:'+C.indigo+'"></div>':'')+'</div>'
@@ -451,7 +468,7 @@ function buildHeader(){
 }
 
 function buildTrend(){
-  var allD=FM.map(getMonthData);
+  var allD=FM.map(getEffData);
   var active=allD.filter(function(d){return d.rev>0||d.sg>0;});
   if(!active.length){
     return card('<div style="text-align:center;padding:48px 20px"><div style="font-size:48px;margin-bottom:16px">📂</div><div style="font-size:16px;font-weight:700;color:'+C.textM+';margin-bottom:8px">損益データがありません</div><div style="font-size:13px;color:'+C.textS+';margin-bottom:24px">ヘッダーの「損益CSV」からアップロードしてください</div>'+btnP('btn-open-csv','📂 CSVをアップロード','padding:11px 26px;font-size:14px')+'</div>');
@@ -716,7 +733,7 @@ function buildTrend(){
 
   // ── 月次テーブル ────────────────────────────────────────
   var tRows=FM.map(function(month){
-    var d=getMonthData(month),hR=!!(S.reports[month]&&S.reports[month].text),hK=!!S.kpiData[month];
+    var d=getEffData(month),hR=!!(S.reports[month]&&S.reports[month].text),hK=!!S.kpiData[month];
     var note=S.finNotes[month]||{},bal=note.balance!=null?note.balance:null;
     var hasExp=(note.expenses||[]).some(function(e){return e.label;});
     var cols=[d.rev,d.sg,d.op,d.eco,d.net].map(function(v,j){

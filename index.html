@@ -6,6 +6,7 @@
 <title>経営ダッシュボード</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;background:#f1f5f9;color:#0f172a;font-size:14px}
@@ -84,8 +85,18 @@ var KPI_FIELDS=[
   ['cash_balance','現金残高','man','財務'],
   ['highlights','ハイライト','str','所感'],
   ['lowlights','ローライト','str','所感'],
+  ['laundry_sales','売上合計','man','コインランドリー'],
+  ['laundry_dryer_m','乾燥機(中) 売上','man','コインランドリー'],
+  ['laundry_dryer_l','乾燥機(大) 売上','man','コインランドリー'],
+  ['laundry_washer','洗濯乾燥機 売上','man','コインランドリー'],
+  ['laundry_changer','両替機（抜取）','man','コインランドリー'],
+  ['laundry_util','稼働率(推定)','pct','コインランドリー'],
+  ['laundry_expense','経費合計','man','コインランドリー'],
+  ['laundry_labor','人件費','man','コインランドリー'],
+  ['laundry_op','営業利益','man','コインランドリー'],
+  ['laundry_note','メモ','str','コインランドリー'],
 ];
-var CAT_COLOR={'売上':'#0891b2','会員':'#2563eb','稼働':'#d97706','財務':'#059669','所感':'#7c3aed'};
+var CAT_COLOR={'売上':'#0891b2','会員':'#2563eb','稼働':'#d97706','財務':'#059669','所感':'#7c3aed','コインランドリー':'#7c3aed','宿泊':'#d97706'};
 var C={
   teal:'#0891b2',tealL:'#e0f2fe',blue:'#2563eb',blueL:'#eff6ff',
   green:'#059669',greenL:'#ecfdf5',red:'#dc2626',redL:'#fef2f2',
@@ -106,7 +117,7 @@ var S={
   fy:curFY(),years:{},
   csv:'',csvName:'CSVをアップロードしてください',raw:{},
   kpiData:{},reports:{},finNotes:{},kpiEditMode:null,
-  kpiMsg:'',kpiLoading:false,
+  kpiMsg:'',kpiLoading:false,laundryMsg:'',
   selMonth:'5月',view:'trend',sec:'finance',repMode:'view',
   draft:'',iStep:0,iAns:{},formAnswers:{},iInput:'',genLoading:false,genResult:'',trendTab:'pl',finEditPl:null,blockMode:'ytd',bsData:{},bsName:'残高試算表をアップロード',
   showSettings:false,
@@ -172,7 +183,44 @@ function parseCSV(text){
   return data;
 }
 
-// ── 部門別損益CSV パーサー ──────────────────────────────────
+// ── 損益CSV：自動判定（月次推移 or 残高試算表/期間合計） ──────
+function parsePL(text){
+  var trend=parseCSV(text);
+  if(Object.keys(trend).length>0)return{raw:trend,mode:'trend',month:null};
+  var bal=parsePlBalance(text);
+  if(bal&&Object.keys(bal.raw).length>0)return bal;
+  return{raw:{},mode:'none',month:null};
+}
+// 残高試算表形式の損益計算書（月の列が無く、期間合計が1列）を取り込む
+function parsePlBalance(text){
+  if(!text||!text.trim())return null;
+  var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
+  var hi=-1;
+  for(var i=0;i<lines.length;i++){if(lines[i].indexOf('勘定科目')>=0&&(lines[i].indexOf('終了月')>=0||lines[i].indexOf('期間')>=0)){hi=i;break;}}
+  if(hi<0)return null;
+  var hdr=csvSplit(lines[hi]);
+  // 金額列：まず「終了月」を含む列、無ければ「期間貸方/借方」より後ろの数値列
+  var valIdx=-1;
+  for(var c=0;c<hdr.length;c++){if(String(hdr[c]).indexOf('終了月')>=0){valIdx=c;break;}}
+  if(valIdx<0)for(var c=hdr.length-1;c>=0;c--){if(/借方|貸方|金額|残高/.test(String(hdr[c]))){valIdx=c;break;}}
+  if(valIdx<0)return null;
+  // 対象月：開始月の日付から（例 開始月:2026-05-01 → 5月）
+  var month=null;
+  var dm=/開始月[^0-9]*(\d{4})[^0-9](\d{1,2})/.exec(lines[hi]);
+  if(dm){var n=parseInt(dm[2],10);if(n>=1&&n<=12)month=n+'月';}
+  if(!month){var any=/(\d{4})[-\/.年](\d{1,2})/.exec(lines[hi]);if(any){var n2=parseInt(any[2],10);if(n2>=1&&n2<=12)month=n2+'月';}}
+  if(!month)month='5月';
+  var raw={};
+  for(var i=hi+1;i<lines.length;i++){
+    var cs=csvSplit(lines[i]);
+    var label=(cs[0]&&cs[0]!=='')?cs[0]:(cs[1]||'');
+    if(!label)continue;
+    var rv=(cs[valIdx]!=null?cs[valIdx]:'').replace(/[,円"]/g,'').replace(/%$/,'');
+    var v=parseFloat(rv);if(isNaN(v))v=0;
+    if(v!==0&&!raw[label]){raw[label]={};FM.forEach(function(m){raw[label][m]=0;});raw[label][month]=v;}
+  }
+  return{raw:raw,mode:'balance',month:month};
+}
 // 列: 勘定科目, 補助科目, スポーツクラブ部門, 宿泊施設部門, コインランドリー, 共通費, 合計
 function parseBizCSV(text){
   if(!text||!text.trim())return null;
@@ -756,7 +804,7 @@ function buildKpiTab(){
   var kpi=S.kpiData[S.selMonth]||{};
   var hasData=!!S.kpiData[S.selMonth];
   var editMode=(S.kpiEditMode===S.selMonth);
-  var cats=['売上','会員','稼働','財務','所感','コインランドリー','宿泊'];
+  var cats=['売上','会員','稼働','財務','所感'].filter(function(c){return KPI_FIELDS.some(function(f){return f[3]===c;});});
 
   if(editMode){
     var sections=cats.map(function(cat){
@@ -1124,7 +1172,7 @@ function buildMonth(){
     +'<div style="display:flex;gap:7px">'+(S.repMode==='view'?btnS('btn-rep-upload','📁 アップロード','font-size:12px')+(rep.text?btnS('btn-rep-edit','✏️ 内容を修正','font-size:12px')+btnS('btn-rep-recreate','🔄 AIで再作成','font-size:12px')+btnS('btn-rep-delete','🗑️ 削除','font-size:12px;color:'+C.red+';border-color:'+C.red):btnP('btn-rep-create','✨ AIで作成')):btnS('btn-rep-close','✕ 閉じる','font-size:12px'))+'</div></div>'+repBody
   );
 
-  var secTabs=[['finance','📉 財務'],['bs','📊 B/S'],['kpi','📋 KPI'],['biz','🏢 事業別'],['report','📝 経営報告書']].map(function(pair){
+  var secTabs=[['finance','📉 財務'],['bs','📊 B/S'],['kpi','💪 AQXIA Sports Club'],['biz','🌀 コインランドリー'],['report','📝 経営報告書']].map(function(pair){
     var id=pair[0],label=pair[1],active=S.sec===id;
     return'<button data-sec="'+id+'" style="padding:6px 16px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:'+(active?'linear-gradient(135deg,'+C.teal+','+C.blue+')':C.white)+';color:'+(active?C.white:C.textS)+'">'+label+'</button>';
   }).join('');
@@ -1138,6 +1186,7 @@ function buildMonth(){
     +'<div style="display:flex;gap:3px;margin-bottom:16px;background:'+C.white+';border-radius:11px;padding:4px;border:1px solid '+C.border+';width:fit-content">'+secTabs+'</div>'
     +(S.sec==='finance'?finHtml+noteHtml+memoHtml:'')+(S.sec==='bs'?'<div style="text-align:center;padding:36px 20px"><div style="font-size:32px;margin-bottom:12px">📋</div><div style="font-size:14px;font-weight:700;color:'+C.textM+';margin-bottom:8px">貸借対照表は全体タブで確認できます</div><div style="font-size:12px;color:'+C.textS+';margin-bottom:20px">全体ビューは年度全体の財務状況を表示しています</div>'+btnP("btn-goto-bs","📋 貸借対照表を見る","font-size:13px;padding:10px 24px")+"</div>":"")
     +(S.sec==='kpi'?buildKpiTab():'')
+    +(S.sec==='biz'?buildLaundryTab():'')
     +(S.sec==='report'?repHtml:'')
     +'</div>';
 }
@@ -1604,6 +1653,8 @@ function bindEvents(){
   document.querySelectorAll('.mtab').forEach(function(b){b.addEventListener('click',function(){var v=b.dataset.view||b.dataset.month;S.view=v;if(v!=='trend')S.selMonth=v;S.sec='finance';S.repMode='view';render();});});
   document.querySelectorAll('.row[data-month]').forEach(function(r){r.addEventListener('click',function(){goMonth(r.dataset.month);});});
   document.querySelectorAll('[data-sec]').forEach(function(b){b.addEventListener('click',function(){S.sec=b.dataset.sec;render();});});
+  var blu=document.getElementById('btn-laundry-upload'),blf=document.getElementById('laundry-xlsx');
+  if(blu&&blf){blu.addEventListener('click',function(){blf.click();});blf.addEventListener('change',function(e){if(e.target.files&&e.target.files[0])handleLaundryXlsx(e.target.files[0]);});}
   var bd=document.getElementById('bs-drop'),bi=document.getElementById('bs-input');
   if(bd){bd.addEventListener('click',function(){bi.click();});bd.addEventListener('dragover',function(e){e.preventDefault();});bd.addEventListener('drop',function(e){e.preventDefault();handleBsCsv(e.dataTransfer.files[0]);});}
   if(bi)bi.addEventListener('change',function(e){handleBsCsv(e.target.files[0]);});
@@ -1825,12 +1876,127 @@ async function handleBsCsv(file){
   render();
 }
 
+// ── コインランドリー（事業別タブ） ─────────────────────────
+function buildLaundryTab(){
+  var kpi=S.kpiData[S.selMonth]||{};
+  var cc=CAT_COLOR['コインランドリー'];
+  var flds=KPI_FIELDS.filter(function(f){return f[3]==='コインランドリー';});
+  var numFlds=flds.filter(function(f){return f[2]!=='str';});
+  var strFlds=flds.filter(function(f){return f[2]==='str';});
+  var hasAny=flds.some(function(f){return kpi[f[0]]!=null&&kpi[f[0]]!=='';});
+  var msgColor=(S.laundryMsg.indexOf('⚠️')>=0)?C.red:(S.laundryMsg.indexOf('込み中')>=0?C.textS:C.green);
+  var uploader=card(
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">'
+    +'<div style="min-width:0"><div style="font-size:14px;font-weight:800;color:'+C.text+'">🌀 コインランドリー</div>'
+    +'<div style="font-size:11px;color:'+C.textX+';margin-top:3px;line-height:1.6">売上管理Excel（.xlsx）をアップロードすると、各月の売上・機器別・両替機・稼働率・経費・営業利益を自動で取り込みます</div></div>'
+    +'<input id="laundry-xlsx" type="file" accept=".xlsx" style="display:none">'
+    +btnP('btn-laundry-upload','📊 Excelをアップロード','background:linear-gradient(135deg,'+cc+','+C.blue+');white-space:nowrap')
+    +'</div>'
+    +(S.laundryMsg?'<div style="margin-top:12px;font-size:12px;font-weight:700;color:'+msgColor+'">'+esc(S.laundryMsg)+'</div>':''));
+  if(!hasAny){
+    return uploader+card('<div style="text-align:center;padding:34px 20px">'
+      +'<div style="font-size:38px;margin-bottom:12px">🌀</div>'
+      +'<div style="font-size:15px;font-weight:700;color:'+C.textM+';margin-bottom:6px">'+S.selMonth+'のコインランドリーデータがありません</div>'
+      +'<div style="font-size:12px;color:'+C.textS+'">上の「📊 Excelをアップロード」から取り込むか、AQXIAタブと同様に手入力もできます</div>'
+      +'</div>','margin-top:14px');
+  }
+  var tiles=numFlds.map(function(f){var v=kpi[f[0]];if(v==null||v==='')return'';return kTile(f[1],fmtKpi(v,f[2]),cc);}).filter(Boolean).join('');
+  var noteHtml=strFlds.map(function(f){var v=kpi[f[0]];if(!v)return'';return'<div style="margin-top:14px">'+slabel('📝',f[1])+'<div style="font-size:13px;color:'+C.textM+';line-height:1.7;padding:10px 14px;background:'+C.surf+';border-radius:9px;border:1px solid '+C.border+';white-space:pre-wrap">'+esc(v)+'</div></div>';}).join('');
+  return uploader+card(slabel('🌀','コインランドリー — '+S.selMonth)
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">'+tiles+'</div>'+noteHtml,'margin-top:14px');
+}
+function lnum(v){if(v==null||v==='')return null;if(typeof v==='number')return Math.round(v);var n=parseFloat(String(v).replace(/[,円%\s]/g,''));return isNaN(n)?null:Math.round(n);}
+function lmonth(d){if(d instanceof Date&&!isNaN(d))return(d.getMonth()+1)+'月';var mm=/(\d{1,2})\s*月/.exec(String(d));if(mm)return parseInt(mm[1],10)+'月';var dm=/\d{4}\D(\d{1,2})\D\d{1,2}/.exec(String(d));if(dm)return parseInt(dm[1],10)+'月';return null;}
+// コインランドリー売上管理Excelを解析（月次サマリー＋損益サマリー）
+function parseLaundryXlsx(buf){
+  var wb=XLSX.read(buf,{type:'array',cellDates:true});
+  function findSheet(kw){var n=null;wb.SheetNames.forEach(function(s){if(n==null&&s.indexOf(kw)>=0)n=s;});return n?wb.Sheets[n]:null;}
+  var months={},fy=null;
+  function ensure(m){if(!months[m])months[m]={};return months[m];}
+  // 月次サマリー：売上・機器別・両替機・稼働率
+  var ws=findSheet('月次サマリー');
+  if(ws){
+    var rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true});
+    var hi=-1;for(var i=0;i<rows.length;i++){if((rows[i]||[]).some(function(c){return String(c).indexOf('月次売上合計')>=0;})){hi=i;break;}}
+    if(hi>=0){
+      var hdr=(rows[hi]||[]).map(function(c){return String(c==null?'':c);});
+      function col(kw){for(var c=0;c<hdr.length;c++){if(hdr[c].indexOf(kw)>=0)return c;}return -1;}
+      var cDm=col('乾燥機(中)'),cDl=col('乾燥機(大)'),cW=col('洗濯乾燥機'),cTot=col('月次売上合計'),cChg=col('両替機'),cUtil=col('稼働率');
+      for(var i=hi+1;i<rows.length;i++){
+        var r=rows[i]||[];var ml=lmonth(r[0]);if(!ml)continue;
+        if(fy==null&&r[0] instanceof Date){var y=r[0].getFullYear(),mo=r[0].getMonth()+1;fy=mo>=5?y:y-1;}
+        var o=ensure(ml);
+        if(cTot>=0)o.laundry_sales=lnum(r[cTot]);
+        if(cDm>=0)o.laundry_dryer_m=lnum(r[cDm]);
+        if(cDl>=0)o.laundry_dryer_l=lnum(r[cDl]);
+        if(cW>=0)o.laundry_washer=lnum(r[cW]);
+        if(cChg>=0)o.laundry_changer=lnum(r[cChg]);
+        if(cUtil>=0){var u=r[cUtil];if(u!=null&&u!==''){var uf=parseFloat(u);if(!isNaN(uf))o.laundry_util=uf<=1?Math.round(uf*1000)/10:Math.round(uf*10)/10;}}
+      }
+    }
+  }
+  // 損益サマリー：経費合計・人件費・営業利益
+  var ps=findSheet('損益サマリー');
+  if(ps){
+    var prows=XLSX.utils.sheet_to_json(ps,{header:1,raw:true});
+    var phi=-1;for(var i=0;i<prows.length;i++){if((prows[i]||[]).some(function(c){return String(c).indexOf('項目')>=0;})){phi=i;break;}}
+    if(phi>=0){
+      var colMonth={};(prows[phi]||[]).forEach(function(c,ci){var ml=lmonth(c);if(ml)colMonth[ci]=ml;});
+      function rowByLabel(kw){for(var i=phi+1;i<prows.length;i++){var r=prows[i]||[];for(var c=0;c<r.length;c++){if(String(r[c]).indexOf(kw)>=0)return r;}}return null;}
+      function applyRow(kw,field){var r=rowByLabel(kw);if(!r)return;Object.keys(colMonth).forEach(function(c){var v=r[c];if(v!=null&&v!==''&&typeof v!=='object')ensure(colMonth[c])[field]=lnum(v);});}
+      applyRow('経費合計','laundry_expense');
+      applyRow('人件費','laundry_labor');
+      applyRow('営業利益','laundry_op');
+    }
+  }
+  // 値がすべて0/空の月は取り込み対象外
+  Object.keys(months).forEach(function(m){var o=months[m];var any=Object.keys(o).some(function(k){var v=o[k];return v!=null&&v!==0&&v!=='';});if(!any)delete months[m];});
+  return{months:months,fy:fy};
+}
+async function handleLaundryXlsx(file){
+  if(!file)return;
+  if(!/\.xlsx$/i.test(file.name)){S.laundryMsg='⚠️ .xlsx ファイルを選んでください';render();return;}
+  if(typeof XLSX==='undefined'){S.laundryMsg='⚠️ Excel読込ライブラリを読み込めませんでした（ネット接続をご確認ください）';render();return;}
+  S.laundryMsg='取り込み中...';render();
+  try{
+    var buf=await file.arrayBuffer();
+    var res=parseLaundryXlsx(buf);
+    var months=res.months,fy=res.fy,keys=Object.keys(months);
+    if(!keys.length){S.laundryMsg='⚠️ 「月次サマリー」「損益サマリー」のデータが見つかりませんでした';render();return;}
+    if(fy&&fy!==S.fy){stashActive();activateYear(fy);}
+    var saved=0;
+    keys.forEach(function(m){
+      var cur=Object.assign({},S.kpiData[m]||{});
+      var o=months[m];Object.keys(o).forEach(function(k){if(o[k]!=null)cur[k]=o[k];});
+      S.kpiData=Object.assign({},S.kpiData);S.kpiData[m]=cur;
+      if(S.gasConnected){try{gasPost({action:'save_kpi',month:gkey(S.fy,m),data:cur});}catch(e){}}
+      saved++;
+    });
+    stashActive();
+    S.selMonth=keys[0];
+    S.laundryMsg='✅ '+saved+'か月分を取り込みました（'+fyLabel(S.fy)+'）'+(S.gasConnected?' / クラウド同期済み':'');
+    render();
+  }catch(e){S.laundryMsg='⚠️ 取込に失敗しました: '+(e&&e.message?e.message:e);render();}
+}
+
 async function handleCsv(file){
   if(!file||!file.name.endsWith('.csv'))return;
   S.csvName=file.name;var ab=await file.arrayBuffer();var text;
   try{text=new TextDecoder('shift-jis').decode(new Uint8Array(ab));}catch(e){text=new TextDecoder('utf-8').decode(new Uint8Array(ab));}
-  S.csv=text;S.raw=parseCSV(text);
-  if(S.gasConnected){S.gasStatus='CSV同期中...';render();try{await gasPost({action:'save_csv',csvName:tagName(S.fy,S.csvName),rawData:text});S.gasStatus='✅ CSV同期完了';}catch(e){S.gasStatus='⚠️ CSV同期失敗';}setTimeout(function(){if(S.gasStatus.includes('CSV')){S.gasStatus='';render();}},3000);}
+  S.csv=text;
+  var pr=parsePL(text);
+  S.raw=pr.raw;
+  if(pr.mode==='none'){
+    S.gasStatus='⚠️ 損益CSVの形式を認識できませんでした';render();
+    setTimeout(function(){if(S.gasStatus.indexOf('損益')>=0){S.gasStatus='';render();}},6000);
+    return;
+  }
+  if(pr.mode==='balance'){
+    // 残高試算表形式：期間合計を該当月に取り込み、その月を表示
+    S.selMonth=pr.month;S.view=pr.month;
+    S.gasStatus='✅ 残高試算表形式として「'+pr.month+'」に取り込みました';
+  }
+  if(S.gasConnected){render();try{await gasPost({action:'save_csv',csvName:tagName(S.fy,S.csvName),rawData:text});if(pr.mode!=='balance')S.gasStatus='✅ CSV同期完了';}catch(e){S.gasStatus='⚠️ CSV同期失敗';}setTimeout(function(){if(/CSV同期完了|取り込みました/.test(S.gasStatus)){S.gasStatus='';render();}},5000);}
   render();
 }
 
@@ -2037,7 +2203,7 @@ async function loadGas(){
       distribute(j.kpi,'kpiData');
       distribute(j.financeNotes,'finNotes');
       distribute(j.formAnswers,'formAnswers');
-      if(j.csvData&&j.csvData.rawData){var pc=parseName(j.csvData.csvName);var bc=ensureYear(pc.fy||BASE_FY);bc.csv=j.csvData.rawData;bc.csvName=pc.name||'（クラウドから）';bc.raw=parseCSV(bc.csv);}
+      if(j.csvData&&j.csvData.rawData){var pc=parseName(j.csvData.csvName);var bc=ensureYear(pc.fy||BASE_FY);bc.csv=j.csvData.rawData;bc.csvName=pc.name||'（クラウドから）';bc.raw=parsePL(bc.csv).raw;}
       if(j.bsData&&j.bsData.rawData){var pb=parseName(j.bsData.bsName);var bb=ensureYear(pb.fy||BASE_FY);bb.bsData=parseBsCSV(j.bsData.rawData);bb.bsName=pb.name||'（クラウドから）';}
       if(j.bizCsvData&&j.bizCsvData.rawData){var pz=parseName(j.bizCsvData.bizCsvName);var bz=ensureYear(pz.fy||BASE_FY);bz.bizCsv=parseBizCSV(j.bizCsvData.rawData);bz.bizCsvName=pz.name||'（クラウドから）';}
       ensureYear(S.fy);activateYear(S.fy);

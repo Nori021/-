@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>経営ダッシュボード v6</title>
+<title>経営ダッシュボード v7</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -24,7 +24,7 @@ input,textarea,button,select{font-family:inherit}
 <script>
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
-var APP_VERSION='v6';
+var APP_VERSION='v7';
 var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱うfunction curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
 function fyLabel(fy){return fy+'年度';}
 function fyRange(fy){return fy+'年5月〜'+(fy+1)+'年4月';}
@@ -121,7 +121,7 @@ var S={
   showSettings:false,
   gasUrl:'https://script.google.com/macros/s/AKfycbwubL_JEwjoUW_pQqlZQj6gHlTZGgetGvgOkAzeqyJH9HtMC1aHXFTYZBJhSpU6nTls/exec',adminKey:'Takabashira2024',
   gasConnected:true,gasStatus:'',gasTesting:false,dbLoading:false,
-  bizCsvRaw:'',bizCsvName:'部門別CSVをアップロード',bizCsv:null,
+  bizCsvRaw:'',bizCsvName:'部門別CSVをアップロード',bizCsv:null,bizUpMonth:'5月',bizMsg:'',bizMetric:'cost',
 };
 
 
@@ -453,9 +453,6 @@ function buildHeader(){
     +'<div id="bs-drop" style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;border:1.5px dashed '+(S.bsData&&Object.keys(S.bsData).length?C.purple:C.border)+';cursor:pointer;flex-shrink:0;background:'+(S.bsData&&Object.keys(S.bsData).length?C.purpleL:C.white)+'">'
     +'<input id="bs-input" type="file" accept=".csv" style="display:none"><span style="font-size:13px">📋</span>'
     +'<div><div style="font-size:10px;font-weight:700;color:'+C.purple+'">貸借対照表</div><div style="font-size:9px;color:'+C.textX+';max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(S.bsData&&Object.keys(S.bsData).length?'✅ ':'')+esc(S.bsName)+'</div></div></div>'
-    +'<div id="biz-drop" style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;border:1.5px dashed '+C.border+';cursor:pointer;flex-shrink:0">'
-    +'<input id="biz-input" type="file" accept=".csv" style="display:none"><span style="font-size:13px">🏢</span>'
-    +'<div><div style="font-size:10px;font-weight:700;color:'+C.green+'">部門別CSV</div><div style="font-size:9px;color:'+C.textX+';max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(S.bizCsv?'✅ '+esc(S.bizCsvName):esc(S.bizCsvName))+'</div></div></div>'
 
     +(S.kpiLoading?'<div style="display:flex;align-items:center;gap:6px">'+dots()+'<span style="font-size:11px;color:'+C.teal+'">'+esc(S.kpiMsg)+'</span></div>':S.kpiMsg?'<div style="font-size:11px;color:'+(S.kpiMsg.startsWith('⚠️')?C.red:C.green)+'">'+esc(S.kpiMsg)+'</div>':'')
     +'<div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0">'+gasBar
@@ -752,7 +749,7 @@ function buildTrend(){
   var tTab=S.trendTab||'pl';
   var tabBar='<div style="display:flex;gap:3px;margin-bottom:16px;background:'+C.white+';border-radius:11px;padding:4px;border:1px solid '+C.border+';width:fit-content">'
     +['pl','kpi','block','biz','bs'].map(function(id){
-      var lbl=id==='pl'?'📊 損益グラフ':id==='kpi'?'👥 KPIグラフ':id==='block'?'💰 どんぶり図':id==='biz'?'🏢 事業別':'📋 貸借対照表';
+      var lbl=id==='pl'?'📊 損益グラフ':id==='kpi'?'👥 KPIグラフ':id==='block'?'💰 どんぶり図':id==='biz'?'🏢 部門別':'📋 貸借対照表';
       var hasDot=(id==='bs'&&S.bsData&&Object.keys(S.bsData).length>0);
       var isAct=tTab===id;
       return '<button data-ttab="'+id+'" style="padding:7px 20px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:'+(isAct?'linear-gradient(135deg,'+C.teal+','+C.blue+')':C.surf)+';color:'+(isAct?C.white:C.textS)+';position:relative">'
@@ -1343,130 +1340,77 @@ function buildBsTab(){
 
 
 function buildBusiness(){
-  var biz=S.bizCsv;
-
-  if(!biz){
-    return card('<div style="text-align:center;padding:40px 20px">'
-      +'<div style="font-size:48px;margin-bottom:16px">🏢</div>'
-      +'<div style="font-size:16px;font-weight:800;color:'+C.text+';margin-bottom:8px">事業別データがありません</div>'
-      +'<div style="font-size:13px;color:'+C.textS+';line-height:1.9;margin-bottom:24px">'
-        +'マネーフォワード → 会計 → レポート → <b>損益計算書（部門別集計表）</b><br>'
-        +'対象期間: <b>'+fyRange(S.fy)+'</b> でCSVダウンロード後<br>'
-        +'ヘッダーの「🏢 部門別CSV」からアップロードしてください'
-      +'</div>'
-      +btnP("btn-open-biz","🏢 部門別CSVをアップロード","padding:11px 26px;font-size:14px")
-      +"</div>");
-  }
-
   var DEPTS=[
-    {key:"gym",    label:"スポーツクラブ", icon:"💪", color:C.teal,  colorL:C.tealL},
-    {key:"laundry",label:"コインランドリー",icon:"🌀", color:C.green, colorL:C.greenL},
-    {key:"stay",   label:"宿泊事業",       icon:"🏨", color:C.pink,  colorL:"#fff0f7"},
-    {key:"common", label:"共通費",         icon:"🏛️", color:C.amber, colorL:C.amberL},
-    {key:"total",  label:"全社合計",       icon:"Σ",  color:C.indigo,colorL:C.blueL},
+    {key:"gym",    label:"スポーツクラブ", icon:"💪", color:C.teal},
+    {key:"laundry",label:"コインランドリー",icon:"🌀", color:C.green},
+    {key:"stay",   label:"宿泊事業",       icon:"🏨", color:C.pink},
+    {key:"common", label:"共通費",         icon:"🏛️", color:C.amber},
   ];
-
-  function g(dept,key){var v=biz[dept]&&biz[dept][key];return(v!=null)?v:0;}
-
-  function deptSales(k){return g(k,"売上高");}
-  function deptCost(k){
-    var v=g(k,"販売費及び一般管理費合計");if(v)return v;
-    return ["役員報酬","給料賃金","法定福利費","福利厚生費","研修採用費","業務委託料","水道光熱費","広告宣伝費","通信費","地代家賃","賃借料","リース代","支払手数料","修繕費","保険料","租税公課","支払報酬","接待交際費","旅費交通費","荷造運賃","備品・消耗品費","会議費","新聞図書費","諸会費","車両費","雑費"].reduce(function(s,kk){return s+g(k,kk);},0);
-  }
-  function deptProfit(k){return g(k,"営業利益")||(deptSales(k)-deptCost(k));}
-
-  var totalSales=DEPTS.slice(0,3).reduce(function(s,d){return s+deptSales(d.key);},0);
-
-  // ── 事業別KPIカード ──────────────────────────────────
-  function deptCard(dept){
-    var sales=deptSales(dept.key),cost=deptCost(dept.key),profit=deptProfit(dept.key);
-    var share=totalSales>0?Math.round(sales/totalSales*100):0;
-    var margin=sales>0?Math.round(profit/sales*100):0;
-    var hasData=sales>0||cost>0;
-    return '<div style="background:'+C.white+';border-radius:14px;border:1px solid '+C.border+';overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05)">'
-      +'<div style="padding:11px 16px;background:'+dept.colorL+';border-bottom:1px solid '+dept.color+'22;display:flex;align-items:center;gap:8px">'
-        +'<span style="font-size:18px">'+dept.icon+'</span>'
-        +'<span style="font-size:14px;font-weight:800;color:'+dept.color+'">'+dept.label+'</span>'
-        +(hasData
-          ?'<span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 9px;border-radius:12px;background:'+dept.color+';color:white">売上シェア '+share+'%</span>'
-          :'<span style="margin-left:auto;font-size:10px;color:'+C.textX+'">未稼働 / 未入力</span>')
-      +'</div>'
-      +'<div style="padding:14px 16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'
-        +kTile("年間売上",fmtM(sales),dept.color)
-        +kTile("年間支出",fmtM(cost),C.amber)
-        +kTile("営業利益",fmtM(profit),profit>=0?C.green:C.red,"利益率 "+margin+"%")
-      +'</div>'
-    +'</div>';
-  }
-
-  var kpiCards='<div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px">'
-    +DEPTS.slice(0,3).map(function(d){return deptCard(d);}).join('')
-    +'</div>';
-
-  // ── 売上シェア バー ──────────────────────────────────
-  var shareHtml='';
-  if(totalSales>0){
-    var barItems=DEPTS.slice(0,3).map(function(d){
-      var s=deptSales(d.key),pct=totalSales>0?Math.round(s/totalSales*100):0;
-      return '<div style="margin-bottom:8px">'
-        +'<div style="display:flex;justify-content:space-between;margin-bottom:3px">'
-          +'<span style="font-size:12px;font-weight:700;color:'+C.textM+'">'+d.icon+' '+d.label+'</span>'
-          +'<span style="font-size:12px;font-weight:800;color:'+d.color+'">'+fmtM(s)+' ('+pct+'%)</span>'
-        +'</div>'
-        +'<div style="height:10px;background:'+C.surf+';border-radius:5px;overflow:hidden">'
-          +'<div style="height:100%;width:'+pct+'%;background:'+d.color+';border-radius:5px"></div>'
-        +'</div></div>';
-    }).join('');
-    shareHtml='<div style="margin-bottom:14px">'+card(slabel("🥧","売上構成（年間）")+barItems
-      +'<div style="margin-top:10px;padding-top:10px;border-top:1px solid '+C.border+';display:flex;justify-content:space-between">'
-        +'<span style="font-size:12px;color:'+C.textS+'">事業計</span>'
-        +'<span style="font-size:16px;font-weight:900;color:'+C.teal+'">'+fmtM(totalSales)+'</span>'
-      +'</div>'
-    )+'</div>';
-  }
-
-  // ── 費目別 部門比較テーブル ───────────────────────────
   var COST_ITEMS=["役員報酬","給料賃金","法定福利費","福利厚生費","研修採用費","業務委託料","水道光熱費","広告宣伝費","通信費","地代家賃","賃借料","リース代","支払手数料","修繕費","保険料","租税公課","支払報酬","接待交際費","旅費交通費","荷造運賃","備品・消耗品費","会議費","新聞図書費","諸会費","車両費","雑費"];
-  var activeDepts=DEPTS.filter(function(d){return deptSales(d.key)||deptCost(d.key);});
+  function deptMonth(m){var n=S.finNotes[m];return(n&&n.bizDept)?n.bizDept:null;}
+  function g(biz,dept,key){var v=biz&&biz[dept]&&biz[dept][key];return(v!=null)?v:0;}
+  function dSales(biz,k){return g(biz,k,"売上高");}
+  function dCost(biz,k){var v=g(biz,k,"販売費及び一般管理費合計");if(v)return v;return COST_ITEMS.reduce(function(s,kk){return s+g(biz,k,kk);},0);}
+  function dProfit(biz,k){return g(biz,k,"営業利益")||(dSales(biz,k)-dCost(biz,k));}
 
-  var thCells=activeDepts.map(function(d){
-    return '<th style="padding:8px 12px;text-align:right;font-size:11px;color:'+d.color+';white-space:nowrap">'+d.icon+' '+d.label+'</th>';
+  var monthsAll=FM.filter(function(m){return !!deptMonth(m);});
+  var upMonth=S.bizUpMonth||S.selMonth||'5月';
+
+  // 月ごとアップロード
+  var uploader=card(
+    '<div style="font-size:14px;font-weight:800;color:'+C.text+';margin-bottom:6px">🏢 部門別データ（月ごとに入力）</div>'
+    +'<div style="font-size:11px;color:'+C.textX+';line-height:1.7;margin-bottom:12px">マネーフォワード → 会計 → レポート →「損益計算書（部門別集計表）」を<b>その月だけの期間</b>でCSV出力し、月を選んでアップロードしてください。</div>'
+    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+    +'<select id="biz-month" style="padding:7px 10px;border-radius:8px;border:1.5px solid '+C.border+';font-size:13px;font-weight:700;color:'+C.text+';background:'+C.white+'">'
+      +FM.map(function(m){return '<option value="'+m+'"'+(m===upMonth?' selected':'')+'>'+m+(deptMonth(m)?'  ✅':'')+'</option>';}).join('')
+    +'</select>'
+    +'<input id="biz-month-input" type="file" accept=".csv" style="display:none">'
+    +btnP('btn-biz-month-up','📂 この月の部門別CSVをアップロード','font-size:13px')
+    +'</div>'
+    +(S.bizMsg?'<div style="margin-top:10px;font-size:12px;font-weight:700;color:'+(S.bizMsg.indexOf('⚠️')>=0?C.red:C.green)+'">'+esc(S.bizMsg)+'</div>':''));
+
+  if(!monthsAll.length){
+    return uploader+card('<div style="text-align:center;padding:30px 20px">'
+      +'<div style="font-size:40px;margin-bottom:12px">🏢</div>'
+      +'<div style="font-size:14px;font-weight:700;color:'+C.textM+';margin-bottom:6px">部門別データがまだありません</div>'
+      +'<div style="font-size:12px;color:'+C.textS+'">上で月を選び、その月の部門別CSVをアップロードしてください</div>'
+      +'</div>','margin-top:14px');
+  }
+
+  // 指標切替（出費／売上／営業利益）
+  var metric=S.bizMetric||'cost';
+  var metricDefs={cost:{label:'出費（販管費合計）',fn:dCost},sales:{label:'売上',fn:dSales},profit:{label:'営業利益',fn:dProfit}};
+  var mfn=metricDefs[metric].fn;
+  var toggle='<div style="display:flex;gap:6px;margin-bottom:12px">'
+    +[['cost','💸 出費'],['sales','💰 売上'],['profit','📈 営業利益']].map(function(p){var on=metric===p[0];return '<button data-bizmetric="'+p[0]+'" style="padding:6px 14px;border-radius:8px;border:1px solid '+(on?C.teal:C.border)+';background:'+(on?C.teal:C.white)+';color:'+(on?'#fff':C.textS)+';font-size:12px;font-weight:700;cursor:pointer">'+p[1]+'</button>';}).join('')
+    +'</div>';
+
+  function fmtCell(v,col){return v?'<span style="color:'+(col||C.text)+'">'+(v<0?'▲':'')+Math.round(Math.abs(v)/10000).toLocaleString()+'万</span>':'<span style="color:'+C.textX+'">—</span>';}
+  var headCols=monthsAll.map(function(m){return '<th style="padding:8px 10px;text-align:right;font-size:11px;color:'+C.textS+';white-space:nowrap">'+m+'</th>';}).join('')
+    +'<th style="padding:8px 10px;text-align:right;font-size:11px;color:'+C.text+';white-space:nowrap">合計</th>';
+
+  var bodyRows=DEPTS.map(function(d){
+    var cells='',tot=0;
+    monthsAll.forEach(function(m){var v=mfn(deptMonth(m),d.key);tot+=v;var col=metric==='profit'?(v>=0?C.green:C.red):d.color;cells+='<td style="padding:7px 10px;text-align:right;font-size:12px">'+fmtCell(v,col)+'</td>';});
+    var tcol=metric==='profit'?(tot>=0?C.green:C.red):d.color;
+    cells+='<td style="padding:7px 10px;text-align:right;font-size:12px;font-weight:800">'+fmtCell(tot,tcol)+'</td>';
+    return '<tr style="border-bottom:1px solid '+C.border+'"><td style="padding:7px 10px;font-size:12px;font-weight:700;color:'+d.color+';white-space:nowrap">'+d.icon+' '+d.label+'</td>'+cells+'</tr>';
   }).join('');
 
-  var salesRow='<tr style="background:'+C.tealL+'">'
-    +'<td style="padding:8px 12px;font-size:12px;font-weight:800;color:'+C.teal+'">売上高</td>'
-    +activeDepts.map(function(d){var v=deptSales(d.key);return '<td style="padding:8px 12px;text-align:right;font-size:13px;font-weight:800;color:'+C.teal+'">'+(v?fmtM(v):"—")+'</td>';}).join('')
-    +'</tr>';
+  // 合計行
+  var totCells='',grand=0;
+  monthsAll.forEach(function(m){var s=DEPTS.reduce(function(a,d){return a+mfn(deptMonth(m),d.key);},0);grand+=s;totCells+='<td style="padding:8px 10px;text-align:right;font-size:12px;font-weight:800;color:'+C.indigo+'">'+fmtCell(s,C.indigo)+'</td>';});
+  totCells+='<td style="padding:8px 10px;text-align:right;font-size:12px;font-weight:900;color:'+C.indigo+'">'+fmtCell(grand,C.indigo)+'</td>';
+  var totalRow='<tr style="background:'+C.surf+';border-top:2px solid '+C.border+'"><td style="padding:8px 10px;font-size:12px;font-weight:800;color:'+C.textM+'">'+(metric==='profit'?'営業利益 合計':metric==='sales'?'売上 合計':'出費 合計')+'</td>'+totCells+'</tr>';
 
-  var costRows=COST_ITEMS.filter(function(item){
-    return activeDepts.some(function(d){return g(d.key,item)!==0;});
-  }).map(function(item){
-    return '<tr style="border-bottom:1px solid '+C.border+'">'
-      +'<td style="padding:6px 12px;font-size:12px;color:'+C.textM+'">'+item+'</td>'
-      +activeDepts.map(function(d){var v=g(d.key,item);return '<td style="padding:6px 12px;text-align:right;font-size:12px;color:'+(v>0?C.text:C.textX)+'">'+(v>0?Math.round(v/10000).toLocaleString()+"万":"—")+'</td>';}).join('')
-      +'</tr>';
-  }).join('');
+  var table=cardNP(slabel('📋','部門別 月次'+metricDefs[metric].label+'（万円）')
+    +'<div style="padding:0 4px">'+toggle+'</div>'
+    +'<div style="font-size:11px;color:'+C.textX+';margin-bottom:8px;padding:0 4px">各部門が毎月どれだけ'+(metric==='cost'?'支出した':metric==='sales'?'売上があった':'利益を出した')+'か。✅の月はデータ取込済み。</div>'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:'+(160+(monthsAll.length+1)*64)+'px">'
+    +'<thead><tr style="background:'+C.surf+';border-bottom:2px solid '+C.border+'"><th style="padding:8px 10px;text-align:left;font-size:11px;color:'+C.textS+'">部門</th>'+headCols+'</tr></thead>'
+    +'<tbody>'+bodyRows+totalRow+'</tbody></table></div>','padding:18px 20px');
 
-  var sumRow='<tr style="background:'+C.surf+';border-top:2px solid '+C.border+'">'
-    +'<td style="padding:8px 12px;font-size:12px;font-weight:700;color:'+C.textM+'">販管費合計</td>'
-    +activeDepts.map(function(d){var v=deptCost(d.key);return '<td style="padding:8px 12px;text-align:right;font-size:12px;font-weight:700;color:'+C.amber+'">'+Math.round(v/10000).toLocaleString()+"万</td>";}).join('')+'</tr>';
-
-  var profitRow='<tr style="background:'+C.greenL+'">'
-    +'<td style="padding:8px 12px;font-size:12px;font-weight:800;color:'+C.textM+'">営業利益</td>'
-    +activeDepts.map(function(d){var v=deptProfit(d.key);return '<td style="padding:8px 12px;text-align:right;font-size:13px;font-weight:800;color:'+(v>=0?C.green:C.red)+'">'+fmtM(v)+'</td>';}).join('')+'</tr>';
-
-  var costTable=cardNP(
-    slabel("📋","費目別 部門収支比較（年間）")
-    +'<div style="font-size:11px;color:'+C.textX+';margin-bottom:10px">部門別CSVの年間累計。ゼロ行は省略。</div>'
-    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:460px">'
-      +'<thead><tr style="background:'+C.surf+';border-bottom:2px solid '+C.border+'">'
-        +'<th style="padding:8px 12px;text-align:left;font-size:11px;color:'+C.textS+'">費目</th>'+thCells
-      +'</tr></thead>'
-      +'<tbody>'+salesRow+costRows+sumRow+profitRow+'</tbody>'
-    +'</table></div>',"padding:18px 20px"
-  );
-
-  return '<div>'+kpiCards+shareHtml+'<div style="margin-bottom:14px">'+costTable+'</div></div>';
+  return '<div>'+uploader+'<div style="margin-top:14px">'+table+'</div></div>';
 }
 
 function buildBlockPuzzle(active, totalRev, totalSg){
@@ -1688,14 +1632,11 @@ function bindEvents(){
   var bgbs=document.getElementById('btn-goto-bs');
   if(bgbs)bgbs.addEventListener('click',function(){S.view='trend';S.trendTab='bs';render();});
   var bok=document.getElementById('btn-open-kpi');if(bok)bok.addEventListener('click',function(){document.getElementById('kpi-input').click();});
-  // 部門別CSV
-  var bizd=document.getElementById('biz-drop'),bizi=document.getElementById('biz-input');
-  if(bizd){bizd.addEventListener('click',function(){bizi.click();});bizd.addEventListener('dragover',function(e){e.preventDefault();});bizd.addEventListener('drop',function(e){e.preventDefault();handleBizCsv(e.dataTransfer.files[0]);});}
-  if(bizi)bizi.addEventListener('change',function(e){handleBizCsv(e.target.files[0]);});
-  var bizd2=document.getElementById('biz-drop2'),bizi2=document.getElementById('biz-input2');
-  if(bizd2){bizd2.addEventListener('click',function(){bizi2.click();});}
-  if(bizi2)bizi2.addEventListener('change',function(e){handleBizCsv(e.target.files[0]);});
-  var bob=document.getElementById('btn-open-biz');if(bob)bob.addEventListener('click',function(){var i=document.getElementById('biz-input')||document.getElementById('biz-input2');if(i)i.click();});
+  // 部門別CSV（月ごと）
+  var bzm=document.getElementById('biz-month');if(bzm)bzm.addEventListener('change',function(){S.bizUpMonth=bzm.value;});
+  var bzu=document.getElementById('btn-biz-month-up'),bzi=document.getElementById('biz-month-input');
+  if(bzu&&bzi){bzu.addEventListener('click',function(){bzi.click();});bzi.addEventListener('change',function(e){if(e.target.files&&e.target.files[0])handleBizCsv(e.target.files[0]);});}
+  document.querySelectorAll('[data-bizmetric]').forEach(function(b){b.addEventListener('click',function(){S.bizMetric=b.dataset.bizmetric;render();});});
   var ai=FM.indexOf(S.selMonth);
   var bp=document.getElementById('btn-prev');if(bp)bp.addEventListener('click',function(){goMonth(FM[ai-1]);});
   var bn=document.getElementById('btn-next');if(bn)bn.addEventListener('click',function(){goMonth(FM[ai+1]);});
@@ -2083,18 +2024,22 @@ async function handleCsv(file){
 }
 
 async function handleBizCsv(file){
-  if(!file||!file.name.endsWith('.csv'))return;
-  S.bizCsvName=file.name;
+  if(!file||!/\.csv$/i.test(file.name)){S.bizMsg='⚠️ .csvファイルを選んでください';render();return;}
+  var sel=document.getElementById('biz-month');
+  var month=(sel&&sel.value)?sel.value:(S.bizUpMonth||S.selMonth||'5月');
+  S.bizUpMonth=month;
   var ab=await file.arrayBuffer();
   var text;
   try{text=new TextDecoder('cp932').decode(new Uint8Array(ab));}
   catch(e){try{text=new TextDecoder('shift-jis').decode(new Uint8Array(ab));}catch(e2){text=new TextDecoder('utf-8').decode(new Uint8Array(ab));}}
   var parsed=parseBizCSV(text);
-  if(!parsed){alert('部門別CSVの形式が認識できませんでした。\nマネーフォワード→損益計算書→部門別集計表のCSVを使ってください。');return;}
-  S.bizCsv=parsed;
-  S.bizCsvRaw=text;
+  if(!parsed){S.bizMsg='⚠️ 部門別集計表として読み取れませんでした（「スポーツクラブ」を含む列が必要です）';render();return;}
+  var note=Object.assign({},S.finNotes[month]||{});
+  note.bizDept=parsed;
+  S.finNotes=Object.assign({},S.finNotes);S.finNotes[month]=note;
+  if(S.gasConnected){try{gasPost({action:'save_finance_notes',data:allFinNotes()});}catch(e){}}
+  S.bizMsg='✅ '+month+' の部門別データを取り込みました';
   S.trendTab='biz';
-  if(S.gasConnected){gasPost({action:'save_biz_csv',bizCsvName:tagName(S.fy,S.bizCsvName),rawData:text});}
   render();
 }
 

@@ -1922,12 +1922,16 @@ function buildLaundryTab(){
   }
 
   // 月合計のヘッダー
-  var totSales=kpi.laundry_sales,totUtil=kpi.laundry_util;
-  var head=card('<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">'
+  var totSales=kpi.laundry_sales,totUtil=kpi.laundry_util,labor=kpi.laundry_labor,op=kpi.laundry_op;
+  function hstat(label,val,col){return'<div style="text-align:right;min-width:64px"><div style="font-size:9px;font-weight:700;color:'+C.textX+';letter-spacing:.05em;margin-bottom:2px">'+label+'</div><div style="font-size:17px;font-weight:900;color:'+col+';line-height:1.1">'+val+'</div></div>';}
+  var opCol=(op!=null&&op!==''&&(+op)<0)?C.red:cc;
+  var head=card('<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">'
     +'<div style="font-size:13px;font-weight:800;color:'+C.text+'">🌀 '+S.selMonth+' のコインランドリー実績</div>'
-    +'<div style="display:flex;gap:22px">'
-    +'<div style="text-align:right"><div style="font-size:9px;font-weight:700;color:'+C.textX+';letter-spacing:.06em">合計売上</div><div style="font-size:18px;font-weight:900;color:'+cc+'">'+fmtKpi(totSales,'man')+'</div></div>'
-    +'<div style="text-align:right"><div style="font-size:9px;font-weight:700;color:'+C.textX+';letter-spacing:.06em">全体稼働率</div><div style="font-size:18px;font-weight:900;color:'+C.text+'">'+(totUtil!=null&&totUtil!==''?totUtil+'%':'—')+'</div></div>'
+    +'<div style="display:flex;gap:18px;flex-wrap:wrap">'
+    +hstat('合計売上',fmtKpi(totSales,'man'),cc)
+    +hstat('人件費',(labor!=null&&labor!=='')?fmtY(labor):'—',C.text)
+    +hstat('営業利益',fmtKpi(op,'man'),opCol)
+    +hstat('全体稼働率',(totUtil!=null&&totUtil!==''?totUtil+'%':'—'),C.text)
     +'</div></div>','margin-top:14px');
 
   var MD=[

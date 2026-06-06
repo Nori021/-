@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>経営ダッシュボード</title>
+<title>経営ダッシュボード v6</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -24,8 +24,8 @@ input,textarea,button,select{font-family:inherit}
 <script>
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
-var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱う
-function curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
+var APP_VERSION='v6';
+var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱うfunction curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
 function fyLabel(fy){return fy+'年度';}
 function fyRange(fy){return fy+'年5月〜'+(fy+1)+'年4月';}
 // GAS保存キーの接頭辞（2025年度は接頭辞なし＝既存データ互換）
@@ -441,7 +441,7 @@ function buildHeader(){
     +'<div style="display:flex;align-items:center;padding:0 18px;height:52px;border-bottom:1px solid '+C.border+';gap:10px">'
     +'<div style="display:flex;align-items:center;gap:8px;padding-right:14px;border-right:1px solid '+C.border+';flex-shrink:0">'
     +'<div style="width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,'+C.teal+','+C.blue+');display:flex;align-items:center;justify-content:center;font-size:14px">📊</div>'
-    +'<div><div style="font-size:13px;font-weight:800;color:'+C.text+'">経営ダッシュボード</div>'
+    +'<div><div style="font-size:13px;font-weight:800;color:'+C.text+'">経営ダッシュボード <span style="font-size:9px;font-weight:700;color:'+C.textX+'">'+APP_VERSION+'</span></div>'
     +'<div style="display:flex;align-items:center;gap:3px;margin-top:1px">'
     +'<button id="fy-prev" title="前の年度" style="border:1px solid '+C.border+';background:'+C.white+';border-radius:5px;cursor:pointer;font-size:9px;color:'+C.textS+';padding:1px 5px;line-height:1.3">◀</button>'
     +'<span style="font-size:10px;font-weight:800;color:'+C.teal+';min-width:46px;text-align:center">'+fyLabel(S.fy)+'</span>'

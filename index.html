@@ -55,7 +55,7 @@ function maxFY(){var ys=[BASE_FY,curFY()+1].concat(Object.keys(S.years||{}).map(
 var IQS=[
   {key:'campaign',q:'今月実施したキャンペーン・施策は？',hint:'例：新春キャンペーン'},
   {key:'next_plan',q:'来月のキャンペーン・方針は？',hint:'例：3ヶ月応援プランを継続'},
-  {key:'biz',q:'新規事業などの進捗は？',hint:'例：琉球銀行と融資交渉中'},
+  {key:'biz',q:'各事業の進捗は？（プール工事・ランドリーのシステム導入・宿泊施設の工事 など）',hint:'例：プール工事は基礎着工／ランドリーのシステム導入は来月予定／宿泊施設は内装工事中'},
   {key:'issues',q:'現在の課題・リスクは？',hint:'例：転勤シーズンで退会増加リスク'},
   {key:'finance2',q:'来月の大型支出・資金調達は？',hint:'例：コインランドリー購入予定'},
   {key:'ceo',q:'経営者コメント（スタッフへのメッセージ）',hint:'今月の振り返りと来月への意気込みを'},
@@ -2198,6 +2198,13 @@ async function submitForm(){
   var _specialPL=_md.net-_md.eco;
   var _effNet=_effEco+_specialPL;
 
+  // AQXIA Sports Club KPI（ジム系カテゴリ）を自動でまとめる
+  var _gymCats={'売上':1,'会員':1,'稼働':1};
+  var _aqxiaLines=KPI_FIELDS.filter(function(f){return _gymCats[f[3]]&&kpi[f[0]]!=null&&kpi[f[0]]!=='';}).map(function(f){return f[1]+': '+fmtKpi(kpi[f[0]],f[2]);}).join(' / ');
+  // コインランドリー実績を自動でまとめる
+  var _lndDefs=[['laundry_sales','売上合計','man'],['laundry_dryer_m','乾燥機M売上','man'],['laundry_dryer_l','乾燥機L売上','man'],['laundry_washer','洗濯乾燥機XL売上','man'],['laundry_changer','両替機(抜取)','man'],['laundry_util','全体稼働率','pct'],['laundry_util_m','稼働率M','pct'],['laundry_util_l','稼働率L','pct'],['laundry_util_xl','稼働率XL','pct'],['laundry_labor','人件費','yen'],['laundry_op','営業利益','man']];
+  var _lndLines=_lndDefs.filter(function(f){return kpi[f[0]]!=null&&kpi[f[0]]!=='';}).map(function(f){return f[1]+': '+fmtKpi(kpi[f[0]],f[2]);}).join(' / ');
+
   var prompt='あなたは経営コンサルタントです。以下のデータをもとに、スタッフ全員が読みやすい月次経営報告書を日本語マークダウンで作成してください。'+nl+nl
     +'対象月: '+m+nl
     +'売上高: '+fmtY(_effRev)+nl
@@ -2205,15 +2212,15 @@ async function submitForm(){
     +'営業利益: '+fmtY(_effOp)+nl
     +'経常利益: '+fmtY(_effEco)+nl
     +'純利益: '+fmtY(_effNet)+nl
-    +'月初会員: '+fmtN(kpi.members_start,'名')+' 月末会員: '+fmtN(kpi.members_end,'名')+nl
-    +'入会: +'+fmtN(kpi.new_members,'名')+' 退会: -'+fmtN(kpi.left_members,'名')+nl
-    +(kpi.cl_sales||kpi.cl_cost?'コインランドリー売上: '+fmtY(kpi.cl_sales||0)+' 支出: '+fmtY(kpi.cl_cost||0)+' 利益: '+fmtY((kpi.cl_profit!=null?kpi.cl_profit:(kpi.cl_sales||0)-(kpi.cl_cost||0)))+nl:'')
-    +(kpi.ac_sales||kpi.ac_cost?'宿泊売上: '+fmtY(kpi.ac_sales||0)+' 支出: '+fmtY(kpi.ac_cost||0)+' 利益: '+fmtY((kpi.ac_profit!=null?kpi.ac_profit:(kpi.ac_sales||0)-(kpi.ac_cost||0)))+nl:'')
+    +'■ AQXIA Sports Club KPI（経営者は直接管理しておらず、以下のKPI数値のみが根拠です）:'+nl
+    +'  '+(_aqxiaLines||'KPIデータなし')+nl
+    +'■ コインランドリー実績:'+nl
+    +'  '+(_lndLines||'データなし')+nl
     +'ハイライト: '+(kpi.highlights||'なし')+nl
     +'ローライト: '+(kpi.lowlights||'なし')+nl
     +'今月の施策: '+(a.campaign||'なし')+nl
     +'来月の方針: '+(a.next_plan||'未定')+nl
-    +'新規事業進捗: '+(a.biz||'なし')+nl
+    +'各事業の進捗（プール工事・ランドリーのシステム導入・宿泊施設の工事 など）: '+(a.biz||'なし')+nl
     +'課題・リスク: '+(a.issues||'なし')+nl
     +'来月の大型支出: '+(a.finance2||'なし')+nl
     +'経営者コメント: '+(a.ceo||'なし')+nl
@@ -2224,15 +2231,19 @@ async function submitForm(){
     +'- 箇条書きは「- 」を使う'+nl
     +'- アクションプランは「1. 」番号付きリストにする'+nl
     +'- 経営者コメントセクションは「> 」引用形式で書く'+nl
-    +'- 全体で1200〜1800文字程度'+nl+nl
+    +'- AQXIA Sports Clubのセクションは、上記KPI数値だけを根拠に客観的に記述すること。経営者の入力が無いため、施策や原因を推測で断定しないこと'+nl
+    +'- コインランドリーのセクションは、機種別の売上・稼働率と人件費・営業利益にふれること'+nl
+    +'- 各事業の進捗セクションは、入力された進捗（プール工事・ランドリーのシステム導入・宿泊施設の工事など）を整理して記述すること。新規事業の話にはしないこと'+nl
+    +'- 全体で1500〜2200文字程度'+nl+nl
     +'【構成】この順で作成:'+nl
     +'# ① 今月のサマリー'+nl
     +'# ② 売上・財務状況'+nl
-    +'# ③ 会員動向'+nl
-    +'# ④ 今月の施策と成果'+nl
-    +'# ⑤ 課題と改善策'+nl
-    +'# ⑥ 来月のアクションプラン'+nl
-    +'# ⑦ 経営者コメント';
+    +'# ③ AQXIA Sports Club（KPIから読み取り）'+nl
+    +'# ④ コインランドリー（売上・稼働率）'+nl
+    +'# ⑤ 各事業の進捗（プール工事・ランドリーのシステム導入・宿泊施設の工事 など）'+nl
+    +'# ⑥ 今月の施策と課題'+nl
+    +'# ⑦ 来月のアクションプラン'+nl
+    +'# ⑧ 経営者コメント';
 
   try{
     // GAS経由でのみ生成（ブラウザからの直接API呼び出しはCORSで不可）

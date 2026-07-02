@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>経営ダッシュボード v13</title>
+<title>経営ダッシュボード v15</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -24,7 +24,7 @@ input,textarea,button,select{font-family:inherit}
 <script>
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
-var APP_VERSION='v13';
+var APP_VERSION='v15';
 var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱う
 function curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
 function fyLabel(fy){return fy+'年度';}
@@ -291,7 +291,7 @@ function getEffData(m){
   var note=S.finNotes[m]||{},pt=note.pl_temp||{};
   function gRaw(key){var d=S.raw[key];if(!d)return 0;var v=d[m];return(v!=null&&v!=='')?(+v)||0:0;}
   function gPt(key){var e=pt[key];if(e==null)return null;if(typeof e==='object')return e;return{v:e,confirmed:false};}
-  function eff(key){var p=gPt(key);return(p!=null&&p.v!=null)?p.v:gRaw(key);}
+  function eff(key){var p=gPt(key);if(p!=null&&p.v!=null){if(p.confirmed)return p.v;var rw=gRaw(key);return rw!==0?rw:p.v;}return gRaw(key);}
   var calcSg=0;EFF_SG_KEYS.forEach(function(k){calcSg+=eff(k);});
   var hasAnyItem=EFF_SG_KEYS.some(function(k){return eff(k)!==0;});
   var effSg=hasAnyItem?calcSg:md.sg;
@@ -932,7 +932,7 @@ function buildMonth(){
     // plTemp取得 {v, confirmed} or null
     function getPt(key){var e=plTemp[key];if(e==null)return null;if(typeof e==='object')return e;return{v:e,confirmed:false};}
     // 表示値：手入力があれば手入力値、なければCSV値
-    function effVal(key){var pt=getPt(key);return(pt!=null&&pt.v!=null)?pt.v:getRaw(key);}
+    function effVal(key){var pt=getPt(key);if(pt!=null&&pt.v!=null){if(pt.confirmed)return pt.v;var rw=getRaw(key);return rw!==0?rw:pt.v;}return getRaw(key);}
     // ステータス
     function getStatus(key){
       if(getRaw(key)!==0&&getPt(key)==null)return'csv';   // CSV値のみ
@@ -1067,23 +1067,11 @@ function buildMonth(){
   var noteHtml=card(
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">'
     +'<div>'+slabel('💰','月末残高')
-    // 仮の数字
-    +'<div style="margin-bottom:12px;padding:12px 14px;background:'+C.amberL+';border-radius:10px;border:1px solid '+C.amber+'44">'
-      +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
-        +'<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:12px;background:'+C.amber+';color:white">仮</span>'
-        +'<span style="font-size:11px;color:'+C.textS+'">速報・見込み（報告書作成用）</span>'
-      +'</div>'
-      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
-        +'<input id="bal-temp-input" type="number" value="'+(balTemp!=null?balTemp:'')+'" placeholder="仮の残高（円）" style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid '+C.amber+'88;font-size:13px;background:white"/>'
-        +'<span style="font-size:12px;color:'+C.textS+'">円</span>'
-      +'</div>'
-      +(balTemp!=null?'<div style="font-size:18px;font-weight:900;color:'+C.amber+'">'+fmtM(balTemp)+'</div>':'')
-    +'</div>'
-    // 実績
+    // 実績のみ
     +'<div style="margin-bottom:10px">'
       +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
         +'<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:12px;background:'+C.teal+';color:white">実績</span>'
-        +'<span style="font-size:11px;color:'+C.textS+'">確定後に入力</span>'
+        +'<span style="font-size:11px;color:'+C.textS+'">月末の現金・預金残高</span>'
       +'</div>'
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
         +'<input id="bal-input" type="number" value="'+(bal!=null?bal:'')+'" placeholder="実績残高（円）" style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid '+C.border+';font-size:13px"/>'
@@ -1091,11 +1079,6 @@ function buildMonth(){
       +'</div>'
       +(bal!=null?'<div style="font-size:18px;font-weight:900;color:'+(bal>=0?C.blue:C.red)+'">'+fmtM(bal)+'</div>':'')
     +'</div>'
-    // 差分
-    +(bal!=null&&balTemp!=null?'<div style="padding:10px 14px;border-radius:9px;background:'+(Math.abs(bal-balTemp)<10000?C.greenL:(bal>balTemp?C.blueL:C.redL))+';border:1px solid '+(Math.abs(bal-balTemp)<10000?C.green+'33':(bal>balTemp?C.blue+'33':C.red+'33'))+';margin-bottom:10px">'
-      +'<div style="font-size:10px;color:'+C.textX+';margin-bottom:2px">実績 − 仮（差分）</div>'
-      +'<div style="font-size:16px;font-weight:900;color:'+(bal-balTemp>=0?C.blue:C.red)+'">'+(bal-balTemp>=0?'+':'')+fmtM(bal-balTemp)+'</div>'
-    +'</div>':'')
     +btnP('btn-save-bal','💾 保存','width:100%')
     +'<div style="margin-top:6px;font-size:10px;color:'+C.textX+';line-height:1.6">月末時点の現金・預金残高合計</div></div>'
     +'<div>'+slabel('⚠️','大型支出メモ')
@@ -2164,7 +2147,7 @@ async function submitForm(){
   var _pt=_note.pl_temp||{};
   function _getRaw(key){var d=S.raw[key];if(!d)return 0;var v=d[m];return(v!=null&&v!=='')?(+v)||0:0;}
   function _getPt(key){var e=_pt[key];if(e==null)return null;if(typeof e==='object')return e;return{v:e,confirmed:false};}
-  function _effVal(key){var pt=_getPt(key);return(pt!=null&&pt.v!=null)?pt.v:_getRaw(key);}
+  function _effVal(key){var pt=_getPt(key);if(pt!=null&&pt.v!=null){if(pt.confirmed)return pt.v;var rw=_getRaw(key);return rw!==0?rw:pt.v;}return _getRaw(key);}
   var _sgKeys=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費'];
   var _calcSg=0;_sgKeys.forEach(function(k){_calcSg+=_effVal(k);});
   var _hasAnyItem=_sgKeys.some(function(k){return _effVal(k)!==0;});

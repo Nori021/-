@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>経営ダッシュボード v11</title>
+<title>経営ダッシュボード v12</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -24,7 +24,7 @@ input,textarea,button,select{font-family:inherit}
 <script>
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
-var APP_VERSION='v11';
+var APP_VERSION='v12';
 var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱う
 function curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
 function fyLabel(fy){return fy+'年度';}
@@ -88,6 +88,7 @@ var KPI_FIELDS=[
   ['laundry_dryer_m','乾燥機(中) 売上','man','コインランドリー'],
   ['laundry_dryer_l','乾燥機(大) 売上','man','コインランドリー'],
   ['laundry_washer','洗濯乾燥機 売上','man','コインランドリー'],
+  ['laundry_washer_v','洗濯機 売上','man','コインランドリー'],
   ['laundry_changer','両替機（抜取）','man','コインランドリー'],
   ['laundry_util','稼働率(推定)','pct','コインランドリー'],
   ['laundry_expense','経費合計','man','コインランドリー'],
@@ -1852,6 +1853,14 @@ function svgWasher(c,cl){return'<svg width="44" height="44" viewBox="0 0 48 48" 
   +'<path d="M16 30 q2 -3 4 0 t4 0 t4 0" stroke="'+c+'" stroke-width="1.8" fill="none"/>'
   +'<path d="M16 33.5 q2 -3 4 0 t4 0 t4 0" stroke="'+c+'" stroke-width="1.8" fill="none" opacity="0.6"/>'
   +'</svg>';}
+function svgTopWasher(c,cl){return'<svg width="44" height="44" viewBox="0 0 48 48" fill="none">'
+  +'<rect x="7" y="4" width="34" height="40" rx="6" fill="'+cl+'" stroke="'+c+'" stroke-width="2"/>'
+  +'<rect x="7" y="4" width="34" height="8" rx="6" fill="'+c+'"/><rect x="7" y="8" width="34" height="4" fill="'+c+'"/>'
+  +'<circle cx="14" cy="8" r="1.5" fill="#fff"/><rect x="27" y="6.5" width="10" height="3" rx="1.5" fill="#fff"/>'
+  +'<rect x="12" y="17" width="24" height="21" rx="4" fill="#fff" stroke="'+c+'" stroke-width="2"/>'
+  +'<line x1="12" y1="23" x2="36" y2="23" stroke="'+c+'" stroke-width="1.6"/>'
+  +'<circle cx="24" cy="30.5" r="5" fill="none" stroke="'+c+'" stroke-width="1.6" opacity="0.7"/>'
+  +'</svg>';}
 function svgCoin(c,cl){return'<svg width="44" height="44" viewBox="0 0 48 48" fill="none">'
   +'<rect x="7" y="5" width="34" height="38" rx="6" fill="'+cl+'" stroke="'+c+'" stroke-width="2"/>'
   +'<rect x="18" y="10" width="12" height="2.6" rx="1.3" fill="'+c+'"/>'
@@ -1872,7 +1881,7 @@ function buildLaundryTab(){
     +'</div>'
     +(S.laundryMsg?'<div style="margin-top:12px;font-size:12px;font-weight:700;color:'+msgColor+'">'+esc(S.laundryMsg)+'</div>':''));
 
-  var anySales=['laundry_dryer_m','laundry_dryer_l','laundry_washer','laundry_changer','laundry_sales'].some(function(k){return kpi[k]!=null&&kpi[k]!=='';});
+  var anySales=['laundry_dryer_m','laundry_dryer_l','laundry_washer','laundry_washer_v','laundry_changer','laundry_sales'].some(function(k){return kpi[k]!=null&&kpi[k]!=='';});
   if(!anySales){
     return uploader+card('<div style="text-align:center;padding:34px 20px">'
       +'<div style="font-size:38px;margin-bottom:12px">🌀</div>'
@@ -1898,6 +1907,7 @@ function buildLaundryTab(){
     {name:'乾燥機 M',sub:'中型・10台 / 300円',sales:'laundry_dryer_m',util:'laundry_util_m',c:C.teal,cl:C.tealL,svg:svgDryer},
     {name:'乾燥機 L',sub:'大型・2台 / 300円',sales:'laundry_dryer_l',util:'laundry_util_l',c:C.purple,cl:C.purpleL,svg:svgDryer},
     {name:'洗濯乾燥機 XL',sub:'1台 / 1,150円',sales:'laundry_washer',util:'laundry_util_xl',c:C.blue,cl:C.blueL,svg:svgWasher},
+    {name:'洗濯機',sub:'縦型洗濯機',sales:'laundry_washer_v',util:'laundry_util_v',c:C.pink,cl:'#fce7f3',svg:svgTopWasher},
     {name:'両替機',sub:'抜取金額',sales:'laundry_changer',util:null,c:C.amber,cl:C.amberL,svg:svgCoin},
   ];
   var cards=MD.map(function(m){
@@ -1934,7 +1944,7 @@ function parseLaundryXlsx(buf){
     if(hi>=0){
       var hdr=(rows[hi]||[]).map(function(c){return String(c==null?'':c);});
       function col(kw){for(var c=0;c<hdr.length;c++){if(hdr[c].indexOf(kw)>=0)return c;}return -1;}
-      var cDm=col('乾燥機(中)'),cDl=col('乾燥機(大)'),cW=col('洗濯乾燥機'),cTot=col('月次売上合計'),cChg=col('両替機'),cUtil=col('稼働率');
+      var cDm=col('乾燥機(中)'),cDl=col('乾燥機(大)'),cW=col('洗濯乾燥機'),cWv=col('洗濯機'),cTot=col('月次売上合計'),cChg=col('両替機'),cUtil=col('稼働率');
       for(var i=hi+1;i<rows.length;i++){
         var r=rows[i]||[];var ml=lmonth(r[0]);if(!ml)continue;
         if(fy==null&&r[0] instanceof Date){var y=r[0].getFullYear(),mo=r[0].getMonth()+1;fy=mo>=5?y:y-1;}
@@ -1943,6 +1953,7 @@ function parseLaundryXlsx(buf){
         if(cDm>=0)o.laundry_dryer_m=lnum(r[cDm]);
         if(cDl>=0)o.laundry_dryer_l=lnum(r[cDl]);
         if(cW>=0)o.laundry_washer=lnum(r[cW]);
+        if(cWv>=0)o.laundry_washer_v=lnum(r[cWv]);
         if(cChg>=0)o.laundry_changer=lnum(r[cChg]);
         if(cUtil>=0){var u=r[cUtil];if(u!=null&&u!==''){var uf=parseFloat(u);if(!isNaN(uf))o.laundry_util=uf<=1?Math.round(uf*1000)/10:Math.round(uf*10)/10;}}
       }
@@ -1966,15 +1977,15 @@ function parseLaundryXlsx(buf){
   var us=findSheet('稼働率分析');
   if(us){
     var urows=XLSX.utils.sheet_to_json(us,{header:1,raw:true});
-    var acc={m:{},l:{},xl:{}};
+    var acc={m:{},l:{},xl:{},v:{}};
     urows.forEach(function(row){
       var name=String((row&&row[0])||'');
       if(name.indexOf('No.')<0)return;
-      var t=name.indexOf('乾燥機(中)')>=0?'m':name.indexOf('乾燥機(大)')>=0?'l':name.indexOf('洗濯乾燥機')>=0?'xl':null;
+      var t=name.indexOf('乾燥機(中)')>=0?'m':name.indexOf('乾燥機(大)')>=0?'l':name.indexOf('洗濯乾燥機')>=0?'xl':name.indexOf('洗濯機')>=0?'v':null;
       if(!t)return;
       for(var k=0;k<12;k++){var c=3+3*k;var v=row[c];if(v!=null&&v!==''&&!isNaN(parseFloat(v))){(acc[t][FM[k]]=acc[t][FM[k]]||[]).push(parseFloat(v));}}
     });
-    ['m','l','xl'].forEach(function(t){Object.keys(acc[t]).forEach(function(ml){var arr=acc[t][ml];var avg=arr.reduce(function(a,b){return a+b;},0)/arr.length;ensure(ml)['laundry_util_'+t]=Math.round(avg*1000)/10;});});
+    ['m','l','xl','v'].forEach(function(t){Object.keys(acc[t]).forEach(function(ml){var arr=acc[t][ml];var avg=arr.reduce(function(a,b){return a+b;},0)/arr.length;ensure(ml)['laundry_util_'+t]=Math.round(avg*1000)/10;});});
   }
   // 値がすべて0/空の月は取り込み対象外
   Object.keys(months).forEach(function(m){var o=months[m];var any=Object.keys(o).some(function(k){var v=o[k];return v!=null&&v!==0&&v!=='';});if(!any)delete months[m];});
@@ -2168,7 +2179,7 @@ async function submitForm(){
   var _gymCats={'売上':1,'会員':1,'稼働':1};
   var _aqxiaLines=KPI_FIELDS.filter(function(f){return _gymCats[f[3]]&&kpi[f[0]]!=null&&kpi[f[0]]!=='';}).map(function(f){return f[1]+': '+fmtKpi(kpi[f[0]],f[2]);}).join(' / ');
   // コインランドリー実績を自動でまとめる
-  var _lndDefs=[['laundry_sales','売上合計','man'],['laundry_dryer_m','乾燥機M売上','man'],['laundry_dryer_l','乾燥機L売上','man'],['laundry_washer','洗濯乾燥機XL売上','man'],['laundry_changer','両替機(抜取)','man'],['laundry_util','全体稼働率','pct'],['laundry_util_m','稼働率M','pct'],['laundry_util_l','稼働率L','pct'],['laundry_util_xl','稼働率XL','pct'],['laundry_labor','人件費','yen'],['laundry_op','営業利益','man']];
+  var _lndDefs=[['laundry_sales','売上合計','man'],['laundry_dryer_m','乾燥機M売上','man'],['laundry_dryer_l','乾燥機L売上','man'],['laundry_washer','洗濯乾燥機XL売上','man'],['laundry_washer_v','洗濯機売上','man'],['laundry_changer','両替機(抜取)','man'],['laundry_util','全体稼働率','pct'],['laundry_util_m','稼働率M','pct'],['laundry_util_l','稼働率L','pct'],['laundry_util_xl','稼働率XL','pct'],['laundry_util_v','稼働率(洗濯機)','pct'],['laundry_labor','人件費','yen'],['laundry_op','営業利益','man']];
   var _lndLines=_lndDefs.filter(function(f){return kpi[f[0]]!=null&&kpi[f[0]]!=='';}).map(function(f){return f[1]+': '+fmtKpi(kpi[f[0]],f[2]);}).join(' / ');
   // 部門別（その月の損益）を自動でまとめる
   var _bizDept=(S.finNotes[m]||{}).bizDept;

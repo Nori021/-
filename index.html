@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>経営ダッシュボード v10</title>
+<title>経営ダッシュボード v11</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -24,7 +24,7 @@ input,textarea,button,select{font-family:inherit}
 <script>
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
-var APP_VERSION='v10';
+var APP_VERSION='v11';
 var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱う
 function curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
 function fyLabel(fy){return fy+'年度';}
@@ -815,9 +815,10 @@ function buildTrend(){
 
 function buildKpiTab(){
   var kpi=S.kpiData[S.selMonth]||{};
-  var hasData=!!S.kpiData[S.selMonth];
-  var editMode=(S.kpiEditMode===S.selMonth);
   var cats=['売上','会員','稼働','財務','所感'].filter(function(c){return KPI_FIELDS.some(function(f){return f[3]===c;});});
+  var gymKeys=KPI_FIELDS.filter(function(f){return cats.indexOf(f[3])>=0;}).map(function(f){return f[0];});
+  var hasData=gymKeys.some(function(k){return kpi[k]!=null&&kpi[k]!=='';});
+  var editMode=(S.kpiEditMode===S.selMonth);
 
   if(editMode){
     var sections=cats.map(function(cat){
@@ -900,7 +901,9 @@ function buildKpiTab(){
   }).join('');
 
   return'<div>'
-    +'<div style="display:flex;justify-content:flex-end;margin-bottom:14px">'
+    +'<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:14px">'
+    +'<input id="kpi-input" type="file" accept=".pdf,.docx,.doc,.txt" style="display:none">'
+    +btnS('btn-open-kpi','📄 PDF/docxで更新','font-size:12px')
     +btnS('btn-kpi-edit','✏️ 編集・修正する','font-size:12px')
     +'</div>'+sections+'</div>';
 }

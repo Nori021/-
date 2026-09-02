@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>経営ダッシュボード v23</title>
+<title>経営ダッシュボード v24</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -24,7 +24,7 @@ input,textarea,button,select{font-family:inherit}
 <script>
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
-var APP_VERSION='v23';
+var APP_VERSION='v24';
 var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱う
 function curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
 function fyLabel(fy){return fy+'年度';}
@@ -993,6 +993,23 @@ function buildMonth(){
       null,
       {key:'販売費及び一般管理費合計',label:'販管費合計',bold:true,color:C.amber,editable:false,calcVal:effSg},
       {key:'営業利益',bold:true,color:effOp>=0?C.green:C.red,editable:false,calcVal:effOp},
+    ]);
+    // 営業外収益・費用（雑収入＝助成金・還付、受取利息、支払利息など）を明細に表示
+    var nonOpIncKeys=['受取利息','受取配当金','助成金収入','助成金','補助金収入','補助金','還付金','還付加算金','為替差益','雑収入'];
+    var nonOpExpKeys=['支払利息','雑損失','為替差損'];
+    var incTotal=getRaw('営業外収益合計'),expTotal=getRaw('営業外費用合計');
+    var incRows=[],expRows=[],shownInc=0,shownExp=0;
+    nonOpIncKeys.forEach(function(k){var v=getRaw(k);if(v!==0){incRows.push({key:k,bold:false,color:C.green,editable:false,calcVal:v});shownInc+=v;}});
+    nonOpExpKeys.forEach(function(k){var v=getRaw(k);if(v!==0){expRows.push({key:k,bold:false,color:C.red,editable:false,calcVal:-v});shownExp+=v;}});
+    if(incTotal-shownInc!==0)incRows.push({key:'その他営業外収益',bold:false,color:C.green,editable:false,calcVal:incTotal-shownInc});
+    if(expTotal-shownExp!==0)expRows.push({key:'その他営業外費用',bold:false,color:C.red,editable:false,calcVal:-(expTotal-shownExp)});
+    if(incRows.length||expRows.length){
+      detailDefs.push(null);
+      incRows.forEach(function(r){detailDefs.push(r);});
+      expRows.forEach(function(r){detailDefs.push(r);});
+    }
+    detailDefs=detailDefs.concat([
+      null,
       {key:'経常利益',bold:true,color:effEco>=0?C.green:C.red,editable:false,calcVal:effEco},
       {key:'純利益',bold:true,color:effNet>=0?C.green:C.red,editable:false,calcVal:effNet},
     ]);

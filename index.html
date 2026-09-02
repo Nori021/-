@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>経営ダッシュボード v16</title>
+<title>経営ダッシュボード v17</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -24,7 +24,7 @@ input,textarea,button,select{font-family:inherit}
 <script>
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
-var APP_VERSION='v16';
+var APP_VERSION='v17';
 var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱う
 function curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
 function fyLabel(fy){return fy+'年度';}
@@ -1884,9 +1884,9 @@ function buildLaundryTab(){
   var head=card('<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">'
     +'<div style="font-size:13px;font-weight:800;color:'+C.text+'">🌀 '+S.selMonth+' のコインランドリー実績</div>'
     +'<div style="display:flex;gap:18px;flex-wrap:wrap">'
-    +hstat('合計売上',fmtM1(totSales),cc)
+    +hstat('合計売上',fmtY(totSales),cc)
     +hstat('人件費',(labor!=null&&labor!=='')?fmtY(labor):'—',C.text)
-    +hstat('営業利益',fmtM1(op),opCol)
+    +hstat('営業利益',fmtY(op),opCol)
     +hstat('全体稼働率',(totUtil!=null&&totUtil!==''?totUtil+'%':'—'),C.text)
     +'</div></div>','margin-top:14px');
 
@@ -1899,7 +1899,7 @@ function buildLaundryTab(){
   ];
   var cards=MD.map(function(m){
     var sv=kpi[m.sales],uv=m.util?kpi[m.util]:null;
-    var salesStr=fmtM1(sv);
+    var salesStr=fmtY(sv);
     var utilStr=(uv!=null&&uv!=='')?uv+'%':'—';
     var stat=function(label,val,col){return'<div style="text-align:right;min-width:74px"><div style="font-size:9px;font-weight:700;color:'+C.textX+';letter-spacing:.05em;margin-bottom:3px">'+label+'</div><div style="font-size:19px;font-weight:900;color:'+col+';line-height:1.1">'+val+'</div></div>';};
     return'<div style="display:flex;align-items:center;gap:15px;padding:14px 16px;background:'+C.white+';border:1px solid '+C.border+';border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.05);flex-wrap:wrap">'

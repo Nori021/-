@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>経営ダッシュボード v18</title>
+<title>経営ダッシュボード v20</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -24,7 +24,7 @@ input,textarea,button,select{font-family:inherit}
 <script>
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
-var APP_VERSION='v18';
+var APP_VERSION='v20';
 var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱う
 function curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
 function fyLabel(fy){return fy+'年度';}
@@ -285,7 +285,17 @@ function parseBizCSV(text){
 }
 function getMonthData(m){
   function g(k){var d=S.raw[k];if(!d)return 0;var v=d[m];return(v!=null&&v!=='')?Number(v):0;}
-  return{month:m,rev:g('売上高'),op:g('営業利益'),net:g('当期純利益'),sg:g('販売費及び一般管理費合計'),eco:g('経常利益')};
+  function has(k){var d=S.raw[k];return !!(d&&d[m]!=null&&d[m]!=='');}
+  var rev=has('売上高合計')?g('売上高合計'):g('売上高');
+  var cogs=g('売上原価合計');
+  return{month:m,
+    rev:rev,
+    cogs:cogs,
+    gross:has('売上総利益')?g('売上総利益'):(rev-cogs),
+    sg:g('販売費及び一般管理費合計'),
+    op:g('営業利益'),
+    eco:g('経常利益'),
+    net:g('当期純利益')};
 }
 // 手入力修正（finNotes[m].pl_temp）を反映した実効値。月別財務タブと同じロジックで全体ビューにも使う
 var EFF_SG_KEYS=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費'];
@@ -293,17 +303,20 @@ function getEffData(m){
   var md=getMonthData(m);
   var note=S.finNotes[m]||{},pt=note.pl_temp||{};
   function gRaw(key){var d=S.raw[key];if(!d)return 0;var v=d[m];return(v!=null&&v!=='')?(+v)||0:0;}
+  function has(key){var d=S.raw[key];return !!(d&&d[m]!=null&&d[m]!=='');}
   function gPt(key){var e=pt[key];if(e==null)return null;if(typeof e==='object')return e;return{v:e,confirmed:false};}
   function eff(key){var p=gPt(key);if(p!=null&&p.v!=null){if(p.confirmed)return p.v;var rw=gRaw(key);return rw!==0?rw:p.v;}return gRaw(key);}
-  var calcSg=0;EFF_SG_KEYS.forEach(function(k){calcSg+=eff(k);});
-  var hasAnyItem=EFF_SG_KEYS.some(function(k){return eff(k)!==0;});
-  var effSg=hasAnyItem?calcSg:md.sg;
-  var effRev=eff('売上高')||md.rev;
-  var effOp=md.op!==0?md.op+(effSg-md.sg)*-1+(effRev-md.rev):effRev-effSg;
-  var effEco=md.eco!==0?md.eco+(effSg-md.sg)*-1+(effRev-md.rev):effOp;
-  var effNet=effEco+(md.net-md.eco);
-  return{month:m,rev:effRev,op:effOp,net:effNet,sg:effSg,eco:effEco};
+  var effRev=eff('売上高合計')||eff('売上高')||md.rev;
+  var effCogs=eff('売上原価合計');
+  var effGross=has('売上総利益')?eff('売上総利益'):(effRev-effCogs);
+  var effSg=eff('販売費及び一般管理費合計');
+  var effOp=has('営業利益')?eff('営業利益'):(effGross-effSg);
+  var effEco=has('経常利益')?eff('経常利益'):effOp;
+  var effNet=has('当期純利益')?eff('当期純利益'):effEco;
+  return{month:m,rev:effRev,cogs:effCogs,gross:effGross,sg:effSg,op:effOp,eco:effEco,net:effNet};
 }
+// その月に「仮」（未確定の手入力）が1つでも含まれるか
+function hasTempMonth(m){var n=S.finNotes[m];if(!n||!n.pl_temp)return false;return Object.keys(n.pl_temp).some(function(k){var e=n.pl_temp[k];if(e==null)return false;var isTemp=(typeof e==='object')?(e.v!=null&&!e.confirmed):true;if(!isTemp)return false;var d=S.raw[k];var raw=(d&&d[m]!=null&&d[m]!=='')?(+d[m])||0:0;return raw===0;});}
 
 function dots(){return'<span style="display:inline-flex;gap:3px"><span style="width:5px;height:5px;border-radius:50%;background:'+C.teal+';animation:blink 1.2s 0s infinite"></span><span style="width:5px;height:5px;border-radius:50%;background:'+C.teal+';animation:blink 1.2s .2s infinite"></span><span style="width:5px;height:5px;border-radius:50%;background:'+C.teal+';animation:blink 1.2s .4s infinite"></span></span>';}
 function badge(t,c){return'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:'+c+'22;color:'+c+';border:1px solid '+c+'44">'+esc(t)+'</span>';}
@@ -437,10 +450,10 @@ function buildHeader(){
   }
   var tabs=FM.map(function(m){
     var d=getEffData(m),iC=(S.view===m);
-    var hD=d.rev>0||d.sg>0,hR=!!(S.reports[m]&&S.reports[m].text),hK=!!S.kpiData[m];
+    var hD=d.rev>0||d.sg>0,hR=!!(S.reports[m]&&S.reports[m].text),hK=!!S.kpiData[m],hT=hasTempMonth(m);
     return'<button class="mtab" data-month="'+m+'" style="padding:0 12px;border:none;cursor:pointer;font-size:12px;font-weight:'+(iC?700:hD?500:400)+';border-bottom:2.5px solid '+(iC?C.teal:'transparent')+';background:transparent;color:'+(iC?C.teal:hD?C.textS:C.textX)+';white-space:nowrap;flex-shrink:0;height:44px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px">'
-      +'<div style="display:flex;align-items:center;gap:2px">'+m+(hR?'<div style="width:4px;height:4px;border-radius:50%;background:'+C.green+'"></div>':'')+(hK?'<div style="width:4px;height:4px;border-radius:50%;background:'+C.indigo+'"></div>':'')+'</div>'
-      +'<div style="font-size:8px;color:'+(hD?(d.net>=0?C.green:C.red):C.textX)+'">'+(hD?fmtM(d.net):'未確定')+'</div>'
+      +'<div style="display:flex;align-items:center;gap:2px">'+m+(hT?'<span title="仮の数字あり" style="font-size:9px">🚩</span>':'')+(hR?'<div style="width:4px;height:4px;border-radius:50%;background:'+C.green+'"></div>':'')+(hK?'<div style="width:4px;height:4px;border-radius:50%;background:'+C.indigo+'"></div>':'')+'</div>'
+      +'<div style="font-size:8px;color:'+(hT?C.red:(hD?(d.net>=0?C.green:C.red):C.textX))+'">'+(hT?'仮あり':(hD?fmtM(d.net):'未確定'))+'</div>'
       +'</button>';
   }).join('');
   return'<header style="background:'+C.white+';border-bottom:1px solid '+C.border+';position:sticky;top:0;z-index:50;box-shadow:0 1px 3px rgba(0,0,0,.05)">'
@@ -938,32 +951,24 @@ function buildMonth(){
     function effVal(key){var pt=getPt(key);if(pt!=null&&pt.v!=null){if(pt.confirmed)return pt.v;var rw=getRaw(key);return rw!==0?rw:pt.v;}return getRaw(key);}
     // ステータス
     function getStatus(key){
-      if(getRaw(key)!==0&&getPt(key)==null)return'csv';   // CSV値のみ
-      if(getPt(key)==null)return'none';                    // 未入力
-      if(getRaw(key)!==0)return'override';                 // CSV上書き
-      return getPt(key).confirmed?'confirmed':'temp';      // 手入力のみ
+      var pt=getPt(key),raw=getRaw(key);
+      if(pt==null)return raw!==0?'csv':'none';
+      if(pt.confirmed)return raw!==0?'override':'confirmed';  // 確定は常に優先
+      return raw!==0?'csv':'temp';                            // 仮：CSVがあればCSV優先で仮扱いしない
     }
 
     // 費用項目キー
     var sgKeys=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費'];
 
-    // 集計値を手入力ベースで再計算
-    var calcSg=0;
-    sgKeys.forEach(function(k){calcSg+=effVal(k);});
-    // 売上高の手入力
-    var calcRev=effVal('売上高')||md.rev;
-    // 販管費合計：個別項目の合計（CSV or 手入力）
-    // ただし個別項目がすべて0の場合はCSVのmd.sgを使う
-    var hasAnyItem=sgKeys.some(function(k){return effVal(k)!==0;});
-    var effSg=hasAnyItem?calcSg:md.sg;
-    var effRev=calcRev;
-    // 営業利益以降：CSVに値があればCSV、なければ再計算
-    var effOp=md.op!==0?md.op+(effSg-md.sg)*-1+(effRev-md.rev):effRev-effSg;
-    var effEco=md.eco!==0?md.eco+(effSg-md.sg)*-1+(effRev-md.rev):effOp;
-    // 純利益は経常利益との差（特別損益）を保持して計算
-    var specialPL=md.net-md.eco;
-    var effNet=effEco+specialPL;
-    var hasAdjust=sgKeys.some(function(k){return getPt(k)!=null;});
+    // 合計行はCSVからそのまま読む（getEffDataと統一。8科目の足し算はしない）
+    var ed=getEffData(S.selMonth);
+    var effRev=ed.rev,effCogs=ed.cogs,effGross=ed.gross,effSg=ed.sg,effOp=ed.op,effEco=ed.eco,effNet=ed.net;
+    // 内訳（8科目）と「その他」＝販管費合計−8科目
+    var sgItemsSum=0;sgKeys.forEach(function(k){sgItemsSum+=effVal(k);});
+    var sgOther=effSg-sgItemsSum;
+    var breakdownTotal=sgItemsSum+sgOther;
+    var sgMismatch=Math.abs(breakdownTotal-effSg);
+    var hasAdjust=sgKeys.some(function(k){return getPt(k)!=null;})||getPt('売上高')!=null||getPt('売上原価合計')!=null||getPt('販売費及び一般管理費合計')!=null;
 
     // バッジ
     function statusBadge(st){
@@ -978,10 +983,11 @@ function buildMonth(){
     var detailDefs=[
       {key:'売上高',bold:true,color:C.teal,editable:true},
       {key:'売上原価合計',bold:false,color:C.textS,editable:true},
-      {key:'売上総利益',bold:true,color:C.teal,editable:false,calcVal:effRev},
+      {key:'売上総利益',bold:true,color:C.teal,editable:false,calcVal:effGross},
       null,
     ];
     sgKeys.forEach(function(k){detailDefs.push({key:k,bold:false,color:C.textS,editable:true});});
+    detailDefs.push({key:'その他',bold:false,color:C.textM,editable:false,calcVal:sgOther});
     detailDefs=detailDefs.concat([
       null,
       {key:'販管費合計',bold:true,color:C.amber,editable:false,calcVal:effSg},
@@ -1024,6 +1030,8 @@ function buildMonth(){
       +kTile('経常利益',fmtM(effEco),effEco>=0?C.green:C.red)
       +kTile('純利益',fmtM(effNet),effNet>=0?C.green:C.red)
       +'</div>'
+      +(hasTempMonth(S.selMonth)?'<div style="font-size:12px;font-weight:800;color:'+C.red+';margin-bottom:10px;padding:8px 12px;background:'+C.redL+';border-radius:8px;border:1.5px solid '+C.red+'">🚩 仮の数字を含む・対外資料に使わない</div>':'')
+      +(sgMismatch>=1?'<div style="font-size:12px;font-weight:800;color:'+C.red+';margin-bottom:10px;padding:8px 12px;background:'+C.redL+';border-radius:8px;border:1.5px solid '+C.red+'">⚠️ 検算エラー：内訳合計（'+fmtY(breakdownTotal)+'）が販管費合計（'+fmtY(effSg)+'）と一致しません（差 '+fmtY(sgMismatch)+'）</div>':'')
       +(hasAdjust?'<div style="font-size:10px;color:'+C.amber+';margin-bottom:10px;padding:6px 12px;background:'+C.amberL+';border-radius:8px;border:1px solid '+C.amber+'33">📝 手入力の値を反映した試算です。CSV確定後も手入力値で上書き表示されます。</div>':'')
       +card(
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
@@ -1183,9 +1191,10 @@ function buildMonth(){
 
   return'<div>'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">'
-    +'<div style="display:flex;align-items:center;gap:9px"><div style="font-size:21px;font-weight:900;color:'+C.text+'">'+S.selMonth+'</div>'
+    +'<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap"><div style="font-size:21px;font-weight:900;color:'+C.text+'">'+S.selMonth+'</div>'
     +badge((md.net||0)>=0?'黒字':'赤字',(md.net||0)>=0?C.green:C.red)
-    +(S.kpiData[S.selMonth]?badge('KPI取込済',C.indigo):'')+(rep.text?badge('報告書あり',C.green):'')+'</div>'
+    +(S.kpiData[S.selMonth]?badge('KPI取込済',C.indigo):'')+(rep.text?badge('報告書あり',C.green):'')
+    +(hasTempMonth(S.selMonth)?'<span style="font-size:10px;font-weight:800;padding:2px 9px;border-radius:20px;background:'+C.red+';color:#fff">🚩 仮の数字あり・対外資料に使わない</span>':'')+'</div>'
     +'<div style="display:flex;gap:7px">'+(ai>0?btnS('btn-prev','← '+FM[ai-1],'font-size:12px'):'')+(ai<11?btnS('btn-next',FM[ai+1]+' →','font-size:12px'):'')+'</div></div>'
     +'<div style="display:flex;gap:3px;margin-bottom:16px;background:'+C.white+';border-radius:11px;padding:4px;border:1px solid '+C.border+';width:fit-content">'+secTabs+'</div>'
     +(S.sec==='finance'?finHtml+noteHtml+memoHtml:'')+(S.sec==='bs'?'<div style="text-align:center;padding:36px 20px"><div style="font-size:32px;margin-bottom:12px">📋</div><div style="font-size:14px;font-weight:700;color:'+C.textM+';margin-bottom:8px">貸借対照表は全体タブで確認できます</div><div style="font-size:12px;color:'+C.textS+';margin-bottom:20px">全体ビューは年度全体の財務状況を表示しています</div>'+btnP("btn-goto-bs","📋 貸借対照表を見る","font-size:13px;padding:10px 24px")+"</div>":"")
@@ -2160,16 +2169,8 @@ async function submitForm(){
   function _getRaw(key){var d=S.raw[key];if(!d)return 0;var v=d[m];return(v!=null&&v!=='')?(+v)||0:0;}
   function _getPt(key){var e=_pt[key];if(e==null)return null;if(typeof e==='object')return e;return{v:e,confirmed:false};}
   function _effVal(key){var pt=_getPt(key);if(pt!=null&&pt.v!=null){if(pt.confirmed)return pt.v;var rw=_getRaw(key);return rw!==0?rw:pt.v;}return _getRaw(key);}
-  var _sgKeys=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費'];
-  var _calcSg=0;_sgKeys.forEach(function(k){_calcSg+=_effVal(k);});
-  var _hasAnyItem=_sgKeys.some(function(k){return _effVal(k)!==0;});
-  var _effSg=_hasAnyItem?_calcSg:_getRaw('販売費及び一般管理費合計');
-  var _effRev=_effVal('売上高')||_getRaw('売上高');
-  var _md=getMonthData(m);
-  var _effOp=_md.op!==0?_md.op+(_effSg-_md.sg)*-1+(_effRev-_md.rev):_effRev-_effSg;
-  var _effEco=_md.eco!==0?_md.eco+(_effSg-_md.sg)*-1+(_effRev-_md.rev):_effOp;
-  var _specialPL=_md.net-_md.eco;
-  var _effNet=_effEco+_specialPL;
+  var _ed=getEffData(m);
+  var _effRev=_ed.rev,_effGross=_ed.gross,_effSg=_ed.sg,_effOp=_ed.op,_effEco=_ed.eco,_effNet=_ed.net;
 
   // AQXIA Sports Club KPI（ジム系カテゴリ）を自動でまとめる
   var _gymCats={'売上':1,'会員':1,'稼働':1};
@@ -2193,8 +2194,9 @@ async function submitForm(){
   }
 
   var prompt='あなたは経営コンサルタントです。以下のデータをもとに、スタッフ全員が読みやすい月次経営報告書を日本語マークダウンで作成してください。'+nl+nl
-    +'対象月: '+m+nl
+    +'対象月: '+m+(hasTempMonth(m)?'（※仮の数字を含む・対外資料に使わない）':'')+nl
     +'売上高: '+fmtY(_effRev)+nl
+    +'売上総利益: '+fmtY(_effGross)+nl
     +'販管費: '+fmtY(_effSg)+nl
     +'営業利益: '+fmtY(_effOp)+nl
     +'経常利益: '+fmtY(_effEco)+nl

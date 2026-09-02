@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>経営ダッシュボード v15</title>
+<title>経営ダッシュボード v16</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -24,7 +24,7 @@ input,textarea,button,select{font-family:inherit}
 <script>
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
-var APP_VERSION='v15';
+var APP_VERSION='v16';
 var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱う
 function curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
 function fyLabel(fy){return fy+'年度';}
@@ -92,6 +92,9 @@ var KPI_FIELDS=[
   ['laundry_changer','両替機（抜取）','man','コインランドリー'],
   ['laundry_util','稼働率(推定)','pct','コインランドリー'],
   ['laundry_expense','経費合計','man','コインランドリー'],
+  ['laundry_gas','ガス代','man','コインランドリー'],
+  ['laundry_electric','電気代','man','コインランドリー'],
+  ['laundry_water','水道代','man','コインランドリー'],
   ['laundry_labor','人件費','man','コインランドリー'],
   ['laundry_op','営業利益','man','コインランドリー'],
   ['laundry_note','メモ','str','コインランドリー'],
@@ -1909,8 +1912,15 @@ function buildLaundryTab(){
       +'</div></div>';
   }).join('');
 
-  return uploader+head+'<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">'+cards+'</div>'
-    +'<div style="font-size:10px;color:'+C.textX+';margin-top:10px;padding:0 4px;line-height:1.6">※ 売上・稼働率は「'+S.selMonth+'」の数値です。稼働率は各機種の全台平均（推定）です。月は上部の「◀ ▶」または月タブで切り替えできます。</div>';
+  var costDefs=[['laundry_gas','ガス代',C.orange],['laundry_electric','電気代',C.amber],['laundry_water','水道代',C.blue],['laundry_labor','人件費',C.purple],['laundry_expense','経費合計',C.textM]];
+  var anyCost=costDefs.some(function(cd){return kpi[cd[0]]!=null&&kpi[cd[0]]!=='';});
+  var costCard=anyCost?card(slabel('💡','経費内訳（'+S.selMonth+'）')
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px">'
+    +costDefs.map(function(cd){var v=kpi[cd[0]];return kTile(cd[1],(v!=null&&v!=='')?fmtY(v):'—',cd[2]);}).join('')
+    +'</div>','margin-top:12px'):'';
+
+  return uploader+head+'<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">'+cards+'</div>'+costCard
+    +'<div style="font-size:10px;color:'+C.textX+';margin-top:10px;padding:0 4px;line-height:1.6">※ 売上・稼働率・経費は「'+S.selMonth+'」の数値です。稼働率は各機種の全台平均（推定）です。月は上部の「◀ ▶」または月タブで切り替えできます。</div>';
 }
 function lnum(v){if(v==null||v==='')return null;if(typeof v==='number')return Math.round(v);var n=parseFloat(String(v).replace(/[,円%\s]/g,''));return isNaN(n)?null:Math.round(n);}
 function lmonth(d){if(d instanceof Date&&!isNaN(d))return(d.getMonth()+1)+'月';var mm=/(\d{1,2})\s*月/.exec(String(d));if(mm)return parseInt(mm[1],10)+'月';var dm=/\d{4}\D(\d{1,2})\D\d{1,2}/.exec(String(d));if(dm)return parseInt(dm[1],10)+'月';return null;}
@@ -1953,6 +1963,9 @@ function parseLaundryXlsx(buf){
       function rowByLabel(kw){for(var i=phi+1;i<prows.length;i++){var r=prows[i]||[];for(var c=0;c<r.length;c++){if(String(r[c]).indexOf(kw)>=0)return r;}}return null;}
       function applyRow(kw,field){var r=rowByLabel(kw);if(!r)return;Object.keys(colMonth).forEach(function(c){var v=r[c];if(v!=null&&v!==''&&typeof v!=='object')ensure(colMonth[c])[field]=lnum(v);});}
       applyRow('経費合計','laundry_expense');
+      applyRow('ガス','laundry_gas');
+      applyRow('電気','laundry_electric');
+      applyRow('水道','laundry_water');
       applyRow('人件費','laundry_labor');
       applyRow('営業利益','laundry_op');
     }
@@ -2163,7 +2176,7 @@ async function submitForm(){
   var _gymCats={'売上':1,'会員':1,'稼働':1};
   var _aqxiaLines=KPI_FIELDS.filter(function(f){return _gymCats[f[3]]&&kpi[f[0]]!=null&&kpi[f[0]]!=='';}).map(function(f){return f[1]+': '+fmtKpi(kpi[f[0]],f[2]);}).join(' / ');
   // コインランドリー実績を自動でまとめる
-  var _lndDefs=[['laundry_sales','売上合計','man'],['laundry_dryer_m','乾燥機M売上','man'],['laundry_dryer_l','乾燥機L売上','man'],['laundry_washer','洗濯乾燥機XL売上','man'],['laundry_washer_v','洗濯機売上','man'],['laundry_changer','両替機(抜取)','man'],['laundry_util','全体稼働率','pct'],['laundry_util_m','稼働率M','pct'],['laundry_util_l','稼働率L','pct'],['laundry_util_xl','稼働率XL','pct'],['laundry_util_v','稼働率(洗濯機)','pct'],['laundry_labor','人件費','yen'],['laundry_op','営業利益','man']];
+  var _lndDefs=[['laundry_sales','売上合計','man'],['laundry_dryer_m','乾燥機M売上','man'],['laundry_dryer_l','乾燥機L売上','man'],['laundry_washer','洗濯乾燥機XL売上','man'],['laundry_washer_v','洗濯機売上','man'],['laundry_changer','両替機(抜取)','man'],['laundry_util','全体稼働率','pct'],['laundry_util_m','稼働率M','pct'],['laundry_util_l','稼働率L','pct'],['laundry_util_xl','稼働率XL','pct'],['laundry_util_v','稼働率(洗濯機)','pct'],['laundry_gas','ガス代','yen'],['laundry_electric','電気代','yen'],['laundry_water','水道代','yen'],['laundry_labor','人件費','yen'],['laundry_op','営業利益','man']];
   var _lndLines=_lndDefs.filter(function(f){return kpi[f[0]]!=null&&kpi[f[0]]!=='';}).map(function(f){return f[1]+': '+fmtKpi(kpi[f[0]],f[2]);}).join(' / ');
   // 部門別（その月の損益）を自動でまとめる
   var _bizDept=(S.finNotes[m]||{}).bizDept;

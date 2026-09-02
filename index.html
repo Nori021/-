@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>経営ダッシュボード v22</title>
+<title>経営ダッシュボード v23</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -24,7 +24,7 @@ input,textarea,button,select{font-family:inherit}
 <script>
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
-var APP_VERSION='v22';
+var APP_VERSION='v23';
 var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱う
 function curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
 function fyLabel(fy){return fy+'年度';}
@@ -308,7 +308,9 @@ function getEffData(m){
   var effRev=eff('売上高合計')||eff('売上高');
   var effCogs=eff('売上原価合計');
   var effGross=effRev-effCogs;                          // 売上総利益＝売上高−売上原価
-  var effSg=eff('販売費及び一般管理費合計');              // 販管費合計はCSV合計行（or手入力）
+  // 販管費合計＝CSV合計行 ＋ 8科目の手入力による増減（未編集ならCSVと一致）
+  var effSg=gRaw('販売費及び一般管理費合計');
+  EFF_SG_KEYS.forEach(function(k){effSg+=eff(k)-gRaw(k);});
   var effOp=effGross-effSg;                             // 営業利益
   var effEco=effOp+gRaw('営業外収益合計')-gRaw('営業外費用合計'); // 経常利益
   var effNet=effEco+(gRaw('当期純利益')-gRaw('経常利益'));        // 純利益（特別損益・税金を保持）
@@ -989,7 +991,7 @@ function buildMonth(){
     detailDefs.push({key:'その他',bold:false,color:C.textM,editable:false,calcVal:sgOther});
     detailDefs=detailDefs.concat([
       null,
-      {key:'販売費及び一般管理費合計',label:'販管費合計',bold:true,color:C.amber,editable:true},
+      {key:'販売費及び一般管理費合計',label:'販管費合計',bold:true,color:C.amber,editable:false,calcVal:effSg},
       {key:'営業利益',bold:true,color:effOp>=0?C.green:C.red,editable:false,calcVal:effOp},
       {key:'経常利益',bold:true,color:effEco>=0?C.green:C.red,editable:false,calcVal:effEco},
       {key:'純利益',bold:true,color:effNet>=0?C.green:C.red,editable:false,calcVal:effNet},

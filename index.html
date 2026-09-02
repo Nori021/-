@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>経営ダッシュボード v21</title>
+<title>経営ダッシュボード v22</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -24,7 +24,7 @@ input,textarea,button,select{font-family:inherit}
 <script>
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
-var APP_VERSION='v21';
+var APP_VERSION='v22';
 var BASE_FY=2025; // 既存クラウドデータ（接頭辞なし）＝2025年度として扱う
 function curFY(){var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1;return m>=5?y:y-1;}
 function fyLabel(fy){return fy+'年度';}
@@ -300,19 +300,18 @@ function getMonthData(m){
 // 手入力修正（finNotes[m].pl_temp）を反映した実効値。月別財務タブと同じロジックで全体ビューにも使う
 var EFF_SG_KEYS=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費'];
 function getEffData(m){
-  var md=getMonthData(m);
   var note=S.finNotes[m]||{},pt=note.pl_temp||{};
   function gRaw(key){var d=S.raw[key];if(!d)return 0;var v=d[m];return(v!=null&&v!=='')?(+v)||0:0;}
-  function has(key){var d=S.raw[key];return !!(d&&d[m]!=null&&d[m]!=='');}
   function gPt(key){var e=pt[key];if(e==null)return null;if(typeof e==='object')return e;return{v:e,confirmed:false};}
   function eff(key){var p=gPt(key);if(p!=null&&p.v!=null){if(p.confirmed)return p.v;var rw=gRaw(key);return rw!==0?rw:p.v;}return gRaw(key);}
-  var effRev=eff('売上高合計')||eff('売上高')||md.rev;
+  // 各項目は「手入力があればその値、なければCSV」。合計はそれらから再計算（無編集ならCSVと一致）
+  var effRev=eff('売上高合計')||eff('売上高');
   var effCogs=eff('売上原価合計');
-  var effGross=has('売上総利益')?eff('売上総利益'):(effRev-effCogs);
-  var effSg=eff('販売費及び一般管理費合計');
-  var effOp=has('営業利益')?eff('営業利益'):(effGross-effSg);
-  var effEco=has('経常利益')?eff('経常利益'):effOp;
-  var effNet=has('当期純利益')?eff('当期純利益'):effEco;
+  var effGross=effRev-effCogs;                          // 売上総利益＝売上高−売上原価
+  var effSg=eff('販売費及び一般管理費合計');              // 販管費合計はCSV合計行（or手入力）
+  var effOp=effGross-effSg;                             // 営業利益
+  var effEco=effOp+gRaw('営業外収益合計')-gRaw('営業外費用合計'); // 経常利益
+  var effNet=effEco+(gRaw('当期純利益')-gRaw('経常利益'));        // 純利益（特別損益・税金を保持）
   return{month:m,rev:effRev,cogs:effCogs,gross:effGross,sg:effSg,op:effOp,eco:effEco,net:effNet};
 }
 // その月に「仮」（未確定の手入力）が1つでも含まれるか
@@ -979,10 +978,10 @@ function buildMonth(){
       return'';
     }
 
-    // 明細行定義
+    // 明細行定義（編集キーは合計行に合わせる。手入力すると上部の合計に反映される）
     var detailDefs=[
-      {key:'売上高',bold:true,color:C.teal,editable:true},
-      {key:'売上原価合計',bold:false,color:C.textS,editable:true},
+      {key:'売上高合計',label:'売上高',bold:true,color:C.teal,editable:true},
+      {key:'売上原価合計',label:'売上原価',bold:false,color:C.textS,editable:true},
       {key:'売上総利益',bold:true,color:C.teal,editable:false,calcVal:effGross},
       null,
     ];
@@ -990,7 +989,7 @@ function buildMonth(){
     detailDefs.push({key:'その他',bold:false,color:C.textM,editable:false,calcVal:sgOther});
     detailDefs=detailDefs.concat([
       null,
-      {key:'販管費合計',bold:true,color:C.amber,editable:false,calcVal:effSg},
+      {key:'販売費及び一般管理費合計',label:'販管費合計',bold:true,color:C.amber,editable:true},
       {key:'営業利益',bold:true,color:effOp>=0?C.green:C.red,editable:false,calcVal:effOp},
       {key:'経常利益',bold:true,color:effEco>=0?C.green:C.red,editable:false,calcVal:effEco},
       {key:'純利益',bold:true,color:effNet>=0?C.green:C.red,editable:false,calcVal:effNet},
@@ -1003,13 +1002,13 @@ function buildMonth(){
       var pt=row.editable?getPt(row.key):null;
       var bgColor=row.bold?row.color+'12':(st==='temp'?C.amberL:st==='confirmed'?C.greenL:st==='override'?C.blueL:'transparent');
       return'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border-radius:7px;background:'+bgColor+';gap:8px">'
-        +'<span style="font-size:12.5px;color:'+(row.bold?C.textM:C.textS)+';font-weight:'+(row.bold?600:400)+';flex-shrink:0">'+esc(row.key)+'</span>'
+        +'<span style="font-size:12.5px;color:'+(row.bold?C.textM:C.textS)+';font-weight:'+(row.bold?600:400)+';flex-shrink:0">'+esc(row.label||row.key)+'</span>'
         +(editPl&&row.editable
           ?'<div style="display:flex;align-items:center;gap:5px;flex:1;justify-content:flex-end">'
             +statusBadge(st)
             +'<select class="pl-status-sel" data-key="'+esc(row.key)+'" style="padding:3px 6px;border-radius:6px;border:1px solid '+C.border+';font-size:11px">'
-              +'<option value="temp"'+(pt&&!pt.confirmed?' selected':'')+'>🟡 仮</option>'
-              +'<option value="confirmed"'+(pt&&pt.confirmed?' selected':'')+'>🟢 確定</option>'
+              +'<option value="temp"'+(pt?(!pt.confirmed?' selected':''):(getRaw(row.key)===0?' selected':''))+'>🟡 仮</option>'
+              +'<option value="confirmed"'+(pt?(pt.confirmed?' selected':''):(getRaw(row.key)!==0?' selected':''))+'>🟢 確定（上書き）</option>'
             +'</select>'
             +'<input class="pl-temp-inp" data-key="'+esc(row.key)+'" type="number" value="'+(pt!=null?pt.v:getRaw(row.key)||'')+'" placeholder="（円）" style="width:110px;padding:4px 8px;border-radius:6px;border:1.5px solid '+(st==='temp'?C.amber:st==='confirmed'?C.green:C.border)+';font-size:12px;text-align:right"/>'
             +'<span style="font-size:10px;color:'+C.textX+'">円</span>'
@@ -1752,11 +1751,11 @@ function bindEvents(){
     sels.forEach(function(s){selMap[s.dataset.key]=s.value;});
     inps.forEach(function(inp){
       var key=inp.dataset.key,v=inp.value.trim();
-      if(v!==''){
-        pt[key]={v:parseFloat(v),confirmed:selMap[key]==='confirmed'};
-      }else{
-        pt[key]=null;
-      }
+      if(v===''){pt[key]=null;return;}
+      var num=parseFloat(v);if(isNaN(num)){pt[key]=null;return;}
+      var d=S.raw[key];var raw=(d&&d[S.selMonth]!=null&&d[S.selMonth]!=='')?(+d[S.selMonth])||0:0;
+      if(num===raw){pt[key]=null;}  // CSVと同じ（未変更）→上書きを作らない
+      else{pt[key]={v:num,confirmed:selMap[key]==='confirmed'};}  // 変更あり→上書き
     });
     note.pl_temp=pt;
     S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;

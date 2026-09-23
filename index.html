@@ -106,6 +106,40 @@ button{cursor:pointer;background:none;border:none}
 .rows-dd summary{cursor:pointer;font-size:12px;color:var(--deep);font-weight:700;list-style:none;padding:7px 0 7px 6px;border-bottom:1px solid var(--line-2)}
 .rows-dd summary::before{content:"▸ "} .rows-dd[open] summary::before{content:"▾ "}
 
+/* 用語（押すと説明）・前月比・12か月表・見方 */
+.term{border-bottom:1px dotted var(--mut-2);cursor:help}
+.d{display:inline-block;font-size:11px;font-weight:700;margin-top:3px;white-space:nowrap}
+.d.up{color:var(--green)} .d.down{color:var(--red)} .d.flat{color:var(--mut)}
+.kf .d{display:block}
+table.yr td:first-child{white-space:nowrap;font-weight:600}
+table.yr td.num{font-weight:600}
+table.yr td.num.pos{color:var(--green);background:var(--green-l)} table.yr td.num.neg{color:var(--red);background:var(--red-l)}
+.gl-g{margin-bottom:14px} .gl-t{font-size:12px;font-weight:800;color:var(--mut);margin-bottom:6px;letter-spacing:.03em}
+.gl-r{display:grid;grid-template-columns:120px 1fr;gap:8px;padding:7px 0;border-bottom:1px solid var(--line-2);font-size:12.5px;line-height:1.6}
+.gl-r b{color:var(--ink)} .gl-r span{color:var(--ink-2)}
+.print-head{display:none}
+
+/* チュートリアル */
+.tour-shade{position:fixed;inset:0;z-index:70}
+.tour-hi{position:fixed;z-index:71;border-radius:12px;box-shadow:0 0 0 9999px rgba(26,20,10,.55),0 0 0 3px var(--gold);pointer-events:none;transition:all .25s ease}
+.tour-pop{position:fixed;z-index:72;background:var(--card);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.25);padding:14px 16px 12px;width:360px;max-width:calc(100vw - 16px)}
+.tp-h{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.tp-h b{font-size:14px;font-weight:800;flex:1}
+.tp-n{font-size:10.5px;font-weight:800;color:#7A5A0A;background:var(--gold-l);padding:2px 8px;border-radius:999px}
+.tp-h .x{width:26px;height:26px;border-radius:50%;color:var(--mut);font-size:14px}
+.tp-h .x:hover{background:var(--soft);color:var(--ink)}
+.tp-x{font-size:13px;line-height:1.75;color:var(--ink-2)}
+.tp-f{display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px}
+.tp-dots{display:flex;gap:4px} .tp-dots i{width:6px;height:6px;border-radius:50%;background:var(--line);display:inline-block}
+.tp-dots i.on{background:var(--gold-d)} .tp-dots i.done{background:var(--gold)}
+.tp-btns{display:flex;gap:6px}
+body.touring{overflow-x:hidden} body.touring .toast{display:none}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:65;background:var(--ink);color:#fff;border-radius:999px;padding:8px 8px 8px 18px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;box-shadow:0 8px 30px rgba(0,0,0,.25);white-space:nowrap;max-width:calc(100vw - 24px)}
+.toast .btn.ghost{color:#D8D2C4} .toast .btn.ghost:hover{background:rgba(255,255,255,.1);color:#fff}
+.gl-start{background:var(--gold-xl);border:1px solid #EED9A0;border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.gl-start b{font-size:13px}
+@media(max-width:560px){.toast{white-space:normal;border-radius:14px;flex-wrap:wrap;justify-content:center;padding:10px 12px;text-align:center}}
+
 /* ───────── 本文 ───────── */
 main{max-width:1200px;margin:0 auto;padding:22px 24px 90px}
 .sec{margin-bottom:26px;scroll-margin-top:118px}
@@ -285,7 +319,15 @@ input[type=number]{text-align:right;font-variant-numeric:tabular-nums}
 .mhead .r{margin-left:auto;display:flex;gap:6px}
 
 /* 印刷（株主に配るとき） */
-@media print{.top,.months,.pills,.btn,.drawer,.shade,.sec-h .r{display:none!important}main{padding:0;max-width:none}.card,.tile{box-shadow:none;break-inside:avoid}body{background:#fff}}
+@media print{.top,.months,.pills,.btn,.drawer,.shade,.sec-h .r,.seg,.tip,#tour,.toast{display:none!important}main{padding:0;max-width:none}.card,.tile,.kf{box-shadow:none;break-inside:avoid}body{background:#fff}
+  .term{border-bottom:none}
+  /* 「A4で印刷」：スポーツクラブの枠だけを1枚に */
+  body.print-kpi .mhead,body.print-kpi .g5{display:none!important}
+  body.print-kpi .print-head{display:block;font-size:16px;font-weight:800;margin:0 0 10px;padding-bottom:6px;border-bottom:2px solid #F5CC52}
+  body.print-kpi #kpi .sec-h{display:none}
+  body.print-kpi .kgrid{grid-template-columns:repeat(3,1fr);gap:6px}
+  body.print-kpi .kf{padding:6px 10px} body.print-kpi .kf .v{font-size:14px} body.print-kpi .card{padding:10px 12px;margin:0}
+  @page{size:A4;margin:12mm}}
 
 /* ───────── スマホ ───────── */
 @media(max-width:900px){
@@ -324,8 +366,9 @@ input[type=number]{text-align:right;font-variant-numeric:tabular-nums}
 <div class="tip" id="tip"></div>
 <div class="shade" id="shade"></div>
 <aside class="drawer" id="drawer"></aside>
+<div id="tour"></div>
 <script>
-var APP_VERSION='v25';
+var APP_VERSION='v26';
 // ===== 以下は v24 から引き継いだ計算・取込ロジック（画面は含まない） =====
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
@@ -1029,8 +1072,66 @@ var S={
   gasUrl:'https://script.google.com/macros/s/AKfycbwubL_JEwjoUW_pQqlZQj6gHlTZGgetGvgOkAzeqyJH9HtMC1aHXFTYZBJhSpU6nTls/exec',adminKey:'Takabashira2024',
   gasConnected:true,gasStatus:'',gasTesting:false,dbLoading:false,
   bizCsvRaw:'',bizCsvName:'',bizCsv:null,bizUpMonth:'5月',bizMsg:'',bizMetric:'cost',
-  drawer:false,jump:null,plOpen:{}
+  drawer:false,jump:null,plOpen:{},tour:null
 };
+
+// ───────── 用語の一言解説（項目名を押す／なぞると出る。右上「見方」で一覧） ─────────
+var GLOSS={
+  '売上':'お客様からいただいたお金の合計。月謝・利用料・ランドリーの売上など',
+  '売上高':'お客様からいただいたお金の合計。月謝・利用料・ランドリーの売上など',
+  '売上原価':'売るために直接かかった仕入れ。うちはほぼゼロ',
+  '売上総利益':'売上から仕入れを引いたもの。「粗利」とも言う',
+  '販管費':'人件費・家賃・光熱費・広告など、商売を続けるためにかかる毎月の費用の合計',
+  '販管費合計':'人件費・家賃・光熱費・広告など、商売を続けるためにかかる毎月の費用の合計',
+  '営業利益':'売上 − 販管費。本業でどれだけ残ったか。マイナスなら本業が赤字',
+  '営業利益率':'営業利益 ÷ 売上。売上100円のうち何円残ったか',
+  '経常利益':'営業利益に、利息の受け取り・支払いや補助金などを足し引きしたもの',
+  '純利益':'税金まで引いて最後に残ったお金。年度の黒字・赤字はこれで決まる',
+  '純損益':'税金まで引いて最後に残ったお金。年度の黒字・赤字はこれで決まる',
+  '年度累計 売上':'今年度（5月〜）の売上を全部足したもの',
+  '年度累計 営業利益':'今年度の営業利益を全部足したもの',
+  '年度累計 純損益':'今年度の純利益を全部足したもの。マイナスなら年度として赤字',
+  '月平均 販管費':'毎月出ていく費用の平均。会社を1か月動かすのに要るお金',
+  '黒字化に必要な累計売上':'これだけ売上があれば赤字がゼロになる、という線（損益分岐点）',
+  '直近の月末残高':'いちばん新しい月末の、現金と預金の合計',
+  '月末残高':'その月の末日の、現金と預金の合計',
+  '会員数（スポーツクラブ）':'直近の月末の会員数（AQXIA＋AIR）',
+  '月末会員数':'その月の末日の会員数',
+  '月初会員数':'その月の1日の会員数',
+  '入会者数':'その月に新しく入会した人数',
+  '退会者数':'その月に退会した人数',
+  '退会率':'退会者数 ÷ 月初会員数。低いほど会員が定着している',
+  'ARPU':'会員1人あたりの月の売上。単価の目安',
+  'AQXIA ARPU（円/月）':'AQXIA店の会員1人あたりの月の売上',
+  'AIR ARPU（円/月）':'AIR店の会員1人あたりの月の売上',
+  '低稼働枠数':'予約が0〜1件しか入らなかったレッスン枠の数。少ないほどよい',
+  '稼働率':'使われた割合。ランドリーは機械が動いていた時間の割合',
+  '全体稼働率':'全機種の平均で、機械が動いていた時間の割合',
+  '人件費':'給料・役員報酬・社会保険の会社負担など、人にかかるお金',
+  '流動比率':'1年以内に入るお金 ÷ 1年以内に払うお金。100%を切ると支払いが苦しい',
+  '自己資本比率':'会社の財産のうち、借金でない自分のお金の割合。高いほど安全',
+  '純資産':'財産から借金を引いた残り。マイナスだと「債務超過」',
+  '債務超過':'借金が財産より多い状態',
+  '貸借対照表':'ある時点の財産と借金の一覧表。B/Sとも言う',
+  '大型支出':'工事の中間金や設備など、ふだんの月にはない大きな支払い',
+  '部門別':'販管費を、スポーツクラブ・ランドリー・宿泊・共通のどこで使ったかに分けたもの',
+  '共通費':'どの事業にも分けられない費用（本部の経費など）',
+  '仮':'CSVにまだ無く、手で入れた仮の数字。確定したら置き換わる',
+  '確定':'手で入れた数字を正として使う設定。CSVより優先',
+  'CSV':'マネーフォワードから取り込んだ数字',
+  '両替機':'両替機から抜き取った現金。売上ではないので合計に入れない'
+};
+function lab(t){var g=GLOSS[t];return g?'<span class="term" data-tip="'+esc(t+'：'+g)+'">'+esc(t)+'</span>':esc(t);}
+// 前月比：cur・prev は数値。good は「増えるとよい:+1／減るとよい:-1」
+function prevM(m){var i=FM.indexOf(m);return i>0?FM[i-1]:null;}
+function delta(cur,prev,unit,good){
+  if(cur==null||prev==null||cur===''||prev===''||isNaN(cur)||isNaN(prev))return'';
+  var d=cur-prev;if(d===0)return'<span class="d flat">前月と同じ</span>';
+  var txt=unit==='pct'?((d>0?'+':'−')+(Math.round(Math.abs(d)*10)/10)+'pt'):unit==='man'?((d>0?'+':'−')+fmtM(Math.abs(d))):unit==='yen'?((d>0?'+':'−')+Math.abs(Math.round(d)).toLocaleString()+'円'):((d>0?'+':'−')+Math.abs(d).toLocaleString()+(unit==='mei'?'名':unit==='num'?'件':''));
+  var ok=(good||1)*d>0;
+  return'<span class="d '+(ok?'up':'down')+'">'+(d>0?'▲':'▼')+' 前月 '+txt+'</span>';
+}
+var KPI_GOOD={left_members:-1,churn_rate:-1,low_slots:-1,laundry_expense:-1,laundry_gas:-1,laundry_electric:-1,laundry_water:-1,laundry_labor:-1};
 
 // ───────── 小さな部品 ─────────
 function cls(){return Array.prototype.slice.call(arguments).filter(Boolean).join(' ');}
@@ -1038,9 +1139,9 @@ function signCls(v){return v>0?'pos':v<0?'neg':'';}
 function tile(o){
   // o: {label, value, sub, cls, small, bar(0-1)}
   return'<div class="'+cls('tile',o.cls)+'">'
-    +'<div class="l">'+esc(o.label)+'</div>'
+    +'<div class="l">'+lab(o.label)+'</div>'
     +'<div class="n">'+(o.html||esc(o.value))+(o.small?'<small>'+esc(o.small)+'</small>':'')+'</div>'
-    +(o.sub?'<div class="s">'+esc(o.sub)+'</div>':'')
+    +(o.sub?'<div class="s">'+esc(o.sub)+'</div>':'')+(o.d?'<div class="s">'+o.d+'</div>':'')
     +(o.bar!=null?'<div class="bar"><i style="width:'+Math.max(0,Math.min(100,Math.round(o.bar*100)))+'%"></i></div>':'')
     +'</div>';
 }
@@ -1128,6 +1229,7 @@ function buildHeader(){
     +'<div class="fy"><button data-act="fy-prev"'+(S.fy<=BASE_FY?' disabled':'')+' title="前の年度">◀</button><span>'+esc(fyLabel(S.fy))+'</span><button data-act="fy-next"'+(S.fy>=mx?' disabled':'')+' title="次の年度">▶</button></div>'
     +'<div class="sp"></div>'
     +'<div class="sync"><i class="'+st+'"></i>'+esc(stText.replace(/^[✅⚠️]\s*/,''))+'</div>'
+    +'<button class="btn ghost" data-act="guide">見方</button>'
     +'<button class="btn" data-act="drawer">データ取込</button>'
     +'<span class="ver">'+APP_VERSION+'</span>'
     +'</div></header>';
@@ -1232,7 +1334,8 @@ function buildTrend(){
   // ── 事業別 ──
   var bizHtml='<section class="sec" id="biz">'
     +secH('biz','事業別のようす','スポーツクラブ・コインランドリー・宿泊')
-    +'<div class="grid g3">'+buildBizSports()+buildBizLaundry()+buildBizStay()+'</div></section>';
+    +'<div class="grid g3">'+buildBizSports()+buildBizLaundry()+buildBizStay()+'</div>'
+    +buildKpiYearTable()+'</section>';
 
   // ── 部門別 ──
   var deptHtml=deptMonths.length?'<section class="sec" id="dept">'+secH('dept','部門別の収支','マネーフォワードの部門別集計表から。'+deptMonths.join('・')+'が取込済')+buildDeptTable(deptMonths)+'</section>':'';
@@ -1281,7 +1384,7 @@ function buildCostBand(months,totalRev,totalSg,totalOp){
 function buildBizSports(){
   var ms=FM.filter(function(m){return S.kpiData[m]&&S.kpiData[m].members_end;});
   if(!ms.length)return'<div class="card"><div class="ch">スポーツクラブ</div><div class="empty"><b>KPI未取込</b>月ページの「スポーツクラブ」でPDF/docxを読み込むと出ます</div></div>';
-  var lm=ms[ms.length-1],k=S.kpiData[lm];
+  var lm=ms[ms.length-1],k=S.kpiData[lm],pk=ms.length>1?S.kpiData[ms[ms.length-2]]:{};
   var line=svgLine({months:ms,vals:ms.map(function(m){return S.kpiData[m].members_end;}),color:CH.deep,h:150,endLabel:Number(k.members_end).toLocaleString()+'名',
     tips:ms.map(function(m){var x=S.kpiData[m];return m+' 月末会員 '+x.members_end+'名\n入会 +'+(x.new_members||0)+'／退会 −'+(x.left_members||0);})});
   // 折れ線の目盛りは「万」表記なので、人数用に軸ラベルを差し替える
@@ -1289,24 +1392,24 @@ function buildBizSports(){
   var sales=(k.aqxia_sales||0)+(k.air_sales||0);
   return'<div class="card"><div class="ch">スポーツクラブ<span class="r">'+esc(lm)+'時点</span></div>'
     +'<div class="grid g2" style="gap:8px;margin-bottom:8px">'
-    +'<div class="kf"><div class="l">月末会員数</div><div class="v">'+Number(k.members_end).toLocaleString()+'<small style="font-size:11px;color:var(--mut)"> 名</small></div></div>'
-    +'<div class="kf"><div class="l">入会／退会</div><div class="v"><span class="pos">+'+(k.new_members||0)+'</span> <span class="mut">／</span> <span class="neg">−'+(k.left_members||0)+'</span></div></div>'
-    +'<div class="kf"><div class="l">月売上（AQXIA＋AIR）</div><div class="v">'+(sales?fmtM(sales):'—')+'</div></div>'
-    +'<div class="kf"><div class="l">退会率</div><div class="v">'+pct(k.churn_rate,1)+'</div></div>'
+    +'<div class="kf"><div class="l">'+lab('月末会員数')+'</div><div class="v">'+Number(k.members_end).toLocaleString()+'<small style="font-size:11px;color:var(--mut)"> 名</small></div>'+delta(k.members_end,pk.members_end,'mei',1)+'</div>'
+    +'<div class="kf"><div class="l">入会／退会</div><div class="v"><span class="pos">+'+(k.new_members||0)+'</span> <span class="mut">／</span> <span class="neg">−'+(k.left_members||0)+'</span></div>'+delta(k.new_members,pk.new_members,'mei',1)+'</div>'
+    +'<div class="kf"><div class="l">月売上（AQXIA＋AIR）</div><div class="v">'+(sales?fmtM(sales):'—')+'</div>'+delta(sales,(pk.aqxia_sales||0)+(pk.air_sales||0)||null,'man',1)+'</div>'
+    +'<div class="kf"><div class="l">'+lab('退会率')+'</div><div class="v">'+pct(k.churn_rate,1)+'</div>'+delta(k.churn_rate,pk.churn_rate,'pct',-1)+'</div>'
     +'</div><div class="note" style="margin-bottom:2px">会員数の推移（名）</div>'+line+'</div>';
 }
 function buildBizLaundry(){
   var ms=FM.filter(function(m){return S.kpiData[m]&&S.kpiData[m].laundry_sales;});
   if(!ms.length)return'<div class="card"><div class="ch">コインランドリー</div><div class="empty"><b>Excel未取込</b>「データ取込」から売上管理Excelを入れると出ます</div></div>';
-  var lm=ms[ms.length-1],k=S.kpiData[lm];
+  var lm=ms[ms.length-1],k=S.kpiData[lm],pk=ms.length>1?S.kpiData[ms[ms.length-2]]:{};
   var bars=svgBars({months:ms,h:150,series:[{name:'売上',color:CH.gold,vals:ms.map(function(m){return S.kpiData[m].laundry_sales||0;})}],
     tips:ms.map(function(m){var x=S.kpiData[m];return m+' 売上 '+fmtY(x.laundry_sales)+'\n営業利益 '+fmtY(x.laundry_op)+'\n稼働率 '+pct(x.laundry_util,1);})});
   return'<div class="card"><div class="ch">コインランドリー<span class="r">'+esc(lm)+'時点</span></div>'
     +'<div class="grid g2" style="gap:8px;margin-bottom:8px">'
-    +'<div class="kf"><div class="l">月売上</div><div class="v">'+fmtM(k.laundry_sales)+'</div></div>'
-    +'<div class="kf"><div class="l">営業利益</div><div class="v '+signCls(k.laundry_op)+'">'+(k.laundry_op!=null?fmtM(k.laundry_op):'—')+'</div></div>'
-    +'<div class="kf"><div class="l">稼働率（全台平均）</div><div class="v">'+pct(k.laundry_util,1)+'</div></div>'
-    +'<div class="kf"><div class="l">経費合計</div><div class="v">'+(k.laundry_expense!=null?fmtM(k.laundry_expense):'—')+'</div></div>'
+    +'<div class="kf"><div class="l">月売上</div><div class="v">'+fmtM(k.laundry_sales)+'</div>'+delta(k.laundry_sales,pk.laundry_sales,'man',1)+'</div>'
+    +'<div class="kf"><div class="l">'+lab('営業利益')+'</div><div class="v '+signCls(k.laundry_op)+'">'+(k.laundry_op!=null?fmtM(k.laundry_op):'—')+'</div>'+delta(k.laundry_op,pk.laundry_op,'man',1)+'</div>'
+    +'<div class="kf"><div class="l">'+lab('稼働率')+'（全台平均）</div><div class="v">'+pct(k.laundry_util,1)+'</div>'+delta(k.laundry_util,pk.laundry_util,'pct',1)+'</div>'
+    +'<div class="kf"><div class="l">経費合計</div><div class="v">'+(k.laundry_expense!=null?fmtM(k.laundry_expense):'—')+'</div>'+delta(k.laundry_expense,pk.laundry_expense,'man',-1)+'</div>'
     +'</div><div class="note" style="margin-bottom:2px">月売上の推移（万円）</div>'+bars+'</div>';
 }
 function buildBizStay(){
@@ -1322,6 +1425,41 @@ function buildBizStay(){
     +(inv.length?'<div class="rows">'+inv.slice(-6).map(function(e){return'<div class="row" style="padding:6px 0;font-size:12.5px"><span class="mut" style="width:34px">'+esc(e.month)+'</span>'+tag(e.type==='plan'?'予定':'実績',e.type==='plan'?'plan':'actual')+'<span class="k">'+esc(e.label)+'</span><span class="v">'+(e.amount?fmtM(e.amount*10000):'—')+'</span></div>';}).join('')+'</div>'
       :'<div class="note">大型支出メモに宿泊関連（新民家・大三俵）の支出を入れると、ここに集まります。</div>')
     +'</div>';
+}
+// 12か月表（スポーツクラブ／コインランドリー）。月を横に並べ、行ごとに比べる
+function buildKpiYearTable(){
+  var ms=FM.filter(function(m){return !!S.kpiData[m];});
+  if(!ms.length)return'';
+  function num(v,u){if(v==null||v===''||isNaN(v))return'<span class="mut">—</span>';return u==='man'?fmtM(v):u==='pct'?pct(v,1):u==='yen'?Number(Math.round(v)).toLocaleString()+'円':Number(v).toLocaleString();}
+  function table(title,rows,good){
+    var head='<tr><th>項目</th>'+ms.map(function(m){return'<th class="num">'+esc(m)+'</th>';}).join('')+'</tr>';
+    var body=rows.map(function(r){
+      var cells=ms.map(function(m,i){var v=r.get(S.kpiData[m]);var pv=i>0?r.get(S.kpiData[ms[i-1]]):null;var cl='';
+        if(v!=null&&pv!=null&&!isNaN(v)&&!isNaN(pv)&&v!==pv){cl=((r.good||1)*(v-pv)>0)?'pos':'neg';}
+        return'<td class="num '+cl+'">'+num(v,r.u)+'</td>';}).join('');
+      return'<tr><td>'+lab(r.label)+'</td>'+cells+'</tr>';}).join('');
+    return'<div class="card flush" style="margin-top:12px"><div class="ch">'+esc(title)+'<span class="r">色＝前月より良い（緑）／悪い（赤）</span></div><div class="tbl-wrap"><table class="yr"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div></div>';
+  }
+  var sc=[
+    {label:'月末会員数',u:'mei',get:function(k){return k.members_end;}},
+    {label:'入会者数',u:'mei',get:function(k){return k.new_members;}},
+    {label:'退会者数',u:'mei',good:-1,get:function(k){return k.left_members;}},
+    {label:'退会率',u:'pct',good:-1,get:function(k){return k.churn_rate;}},
+    {label:'売上（AQXIA＋AIR）',u:'man',get:function(k){var v=(k.aqxia_sales||0)+(k.air_sales||0);return v||null;}},
+    {label:'AQXIA 売上',u:'man',get:function(k){return k.aqxia_sales;}},
+    {label:'AIR 売上',u:'man',get:function(k){return k.air_sales;}},
+    {label:'AQXIA ARPU（円/月）',u:'yen',get:function(k){return k.aqxia_arpu;}},
+    {label:'AIR ARPU（円/月）',u:'yen',get:function(k){return k.air_arpu;}},
+    {label:'低稼働枠数',u:'num',good:-1,get:function(k){return k.low_slots;}}
+  ].filter(function(r){return ms.some(function(m){var v=r.get(S.kpiData[m]);return v!=null&&v!==''&&!isNaN(v);});});
+  var ld=[
+    {label:'売上合計',u:'man',get:function(k){return k.laundry_sales;}},
+    {label:'営業利益',u:'man',get:function(k){return k.laundry_op;}},
+    {label:'経費合計',u:'man',good:-1,get:function(k){return k.laundry_expense;}},
+    {label:'全体稼働率',u:'pct',get:function(k){return k.laundry_util;}},
+    {label:'両替機（抜取）',u:'man',get:function(k){return k.laundry_changer;}}
+  ].filter(function(r){return ms.some(function(m){var v=r.get(S.kpiData[m]);return v!=null&&v!==''&&!isNaN(v);});});
+  return(sc.length?table('スポーツクラブ 月ごとの一覧',sc):'')+(ld.length?table('コインランドリー 月ごとの一覧',ld):'');
 }
 function buildDeptTable(months){
   var DEPTS=[{key:'gym',label:'スポーツクラブ'},{key:'laundry',label:'コインランドリー'},{key:'stay',label:'宿泊事業'},{key:'common',label:'共通費'}];
@@ -1376,9 +1514,11 @@ function buildMonth(){
     +(has?tag(md.net>=0?'黒字':'赤字',md.net>=0?'pos':'neg'):tag('損益データなし','mut'))+(isCurMonth(m)?tag('集計中','amb'):'')
     +(S.kpiData[m]?tag('KPI取込済','k'):'')+(rep.text?tag('報告書あり','g'):'')
     +'<div class="r">'+(ai>0?'<button class="btn sm" data-act="month" data-m="'+FM[ai-1]+'">← '+FM[ai-1]+'</button>':'')+(ai<11?'<button class="btn sm" data-act="month" data-m="'+FM[ai+1]+'">'+FM[ai+1]+' →</button>':'')+'</div></div>';
+  var pm=prevM(m),pd=pm?getEffData(pm):null;if(pd&&!(pd.rev>0||pd.sg>0))pd=null;
+  function dd(k,good){return pd?delta(md[k],pd[k],'man',good):'';}
   var top=has?'<div class="grid g5" style="margin-bottom:16px">'
-      +tile({label:'売上',value:fmtM(md.rev),cls:'gold'})+tile({label:'販管費',value:fmtM(md.sg)})
-      +tile({label:'営業利益',value:fmtM(md.op),cls:signCls(md.op)})+tile({label:'経常利益',value:fmtM(md.eco),cls:signCls(md.eco)})+tile({label:'純利益',value:fmtM(md.net),cls:signCls(md.net)})+'</div>':'';
+      +tile({label:'売上',value:fmtM(md.rev),cls:'gold',d:dd('rev',1)})+tile({label:'販管費',value:fmtM(md.sg),d:dd('sg',-1)})
+      +tile({label:'営業利益',value:fmtM(md.op),cls:signCls(md.op),d:dd('op',1)})+tile({label:'経常利益',value:fmtM(md.eco),cls:signCls(md.eco),d:dd('eco',1)})+tile({label:'純利益',value:fmtM(md.net),cls:signCls(md.net),d:dd('net',1)})+'</div>':'';
   var k=S.kpiData[m]||{};
   var tabs=[['finance','財務',true],['kpi','スポーツクラブ',!!k.members_end||!!k.aqxia_sales],['laundry','コインランドリー',!!k.laundry_sales],['report','経営報告書',!!rep.text]];
   if(['finance','kpi','laundry','report'].indexOf(S.sec)<0)S.sec='finance';
@@ -1442,7 +1582,7 @@ function buildFinance(m,md,has){
           +'<select class="pl-status-sel" data-key="'+esc(r.key)+'" style="width:auto;padding:4px 6px;font-size:11.5px"><option value="temp"'+(pt?(!pt.confirmed?' selected':''):(getRaw(r.key)===0?' selected':''))+'>仮</option><option value="confirmed"'+(pt?(pt.confirmed?' selected':''):(getRaw(r.key)!==0?' selected':''))+'>確定（上書き）</option></select>'
           +'<input class="pl-temp-inp in" data-key="'+esc(r.key)+'" type="number" value="'+(pt!=null?pt.v:getRaw(r.key)||'')+'" placeholder="円"/></div>';
       }else{
-        main='<div class="row'+(r.b?' b':'')+(r.sub?' has-sub':'')+'"'+(r.sub?' data-act="tg" data-t="'+r.id+'"':'')+'><span class="k"><span class="kt">'+esc(r.label||r.key)+'</span>'+(r.sub?tg:'')+'</span>'+(r.e?sb(st):'')+'<span class="v '+(v<0?'neg':'')+'">'+(v===0&&!r.b?'<span class="mut">—</span>':fmtY(v))+'</span></div>';
+        main='<div class="row'+(r.b?' b':'')+(r.sub?' has-sub':'')+'"'+(r.sub?' data-act="tg" data-t="'+r.id+'"':'')+'><span class="k"><span class="kt">'+lab(r.label||r.key)+'</span>'+(r.sub?tg:'')+'</span>'+(r.e?sb(st):'')+'<span class="v '+(v<0?'neg':'')+'">'+(v===0&&!r.b?'<span class="mut">—</span>':fmtY(v))+'</span></div>';
       }
       if(r.sub&&isOpen)main+='<div class="rows sub">'+r.sub.map(oneRow).join('')+'</div>';
       return main;
@@ -1479,7 +1619,8 @@ function buildFinance(m,md,has){
 function buildKpi(m){
   var kpi=S.kpiData[m]||{},edit=(S.kpiEditMode===m);
   var right=edit?'<button class="btn sm" data-act="kpi-cancel">キャンセル</button><button class="btn sm pri" data-act="kpi-save">保存</button>'
-    :'<button class="btn sm" data-act="kpi-file">PDF/docxで更新</button><button class="btn sm" data-act="kpi-edit">'+(S.kpiData[m]?'編集':'手入力')+'</button>';
+    :(S.kpiData[m]?'<button class="btn sm ghost" data-act="print-kpi">A4で印刷</button>':'')+'<button class="btn sm" data-act="kpi-file">PDF/docxで更新</button><button class="btn sm" data-act="kpi-edit">'+(S.kpiData[m]?'編集':'手入力')+'</button>';
+  var pk=prevM(m)?(S.kpiData[prevM(m)]||null):null;
   var html=secH('kpi','スポーツクラブ（AQXIA／AIR）',S.kpiData[m]?'KPI取込済':'KPI未取込',right)
     +(S.kpiMsg?'<div class="msg '+(S.kpiLoading?'busy':S.kpiMsg.indexOf('⚠️')>=0?'ng':'ok')+'" style="margin:0 0 10px">'+esc(S.kpiMsg)+'</div>':'');
   var cats=['売上','会員','稼働','所感'];
@@ -1489,12 +1630,12 @@ function buildKpi(m){
   var body=cats.map(function(cat){
     var fields=KPI_FIELDS.filter(function(f){return f[3]===cat&&(edit||(kpi[f[0]]!=null&&kpi[f[0]]!==''));});
     if(!fields.length)return'';
-    var cells=fields.map(function(f){var key=f[0],lab=f[1],unit=f[2],v=kpi[key];var isTxt=(unit==='str');
-      if(edit)return'<div class="kf'+(isTxt?' txt wide':'')+'"><div class="l">'+esc(lab)+'</div>'+(isTxt?'<textarea class="kpi-field" data-key="'+key+'" rows="3">'+esc(v||'')+'</textarea>':'<input class="kpi-field" data-key="'+key+'" type="text" value="'+esc(v!=null?v:'')+'" placeholder="'+(unit==='man'||unit==='yen'?'円':unit==='pct'?'%':'')+'"/>')+'</div>';
-      return'<div class="kf'+(isTxt?' txt wide':'')+'"><div class="l">'+esc(lab)+'</div><div class="v">'+(isTxt?esc(v):esc(fmtKpi(v,unit)))+'</div></div>';}).join('');
+    var cells=fields.map(function(f){var key=f[0],lb=f[1],unit=f[2],v=kpi[key];var isTxt=(unit==='str');
+      if(edit)return'<div class="kf'+(isTxt?' txt wide':'')+'"><div class="l">'+esc(lb)+'</div>'+(isTxt?'<textarea class="kpi-field" data-key="'+key+'" rows="3">'+esc(v||'')+'</textarea>':'<input class="kpi-field" data-key="'+key+'" type="text" value="'+esc(v!=null?v:'')+'" placeholder="'+(unit==='man'||unit==='yen'?'円':unit==='pct'?'%':'')+'"/>')+'</div>';
+      return'<div class="kf'+(isTxt?' txt wide':'')+'"><div class="l">'+lab(lb)+'</div><div class="v">'+(isTxt?esc(v):esc(fmtKpi(v,unit)))+'</div>'+(!isTxt&&pk?delta(v,pk[key],unit,KPI_GOOD[key]||1):'')+'</div>';}).join('');
     return'<div class="card"><div class="ch">'+esc(cat)+'</div><div class="kgrid">'+cells+'</div></div>';
   }).join('');
-  return html+'<div class="grid" style="gap:12px">'+body+'</div>';
+  return html+'<div class="print-head">'+esc(fyLabel(S.fy))+' '+esc(m)+'　スポーツクラブ（AQXIA／AIR）KPI</div><div class="grid" style="gap:12px">'+body+'</div>';
 }
 
 function buildLaundry(m){
@@ -1504,9 +1645,10 @@ function buildLaundry(m){
     +(S.laundryMsg?'<div class="msg '+(S.laundryMsg.indexOf('⚠️')>=0?'ng':S.laundryMsg.indexOf('込み中')>=0?'busy':'ok')+'" style="margin:0 0 10px">'+esc(S.laundryMsg)+'</div>':'');
   if(!any)return html+'<div class="card"><div class="empty"><b>'+esc(m)+'のコインランドリー実績がありません</b>売上管理Excel（.xlsx）を「Excelで更新」で読み込むと、機種別の売上と稼働率が入ります。</div></div>';
   function mach(nm,sp,v,u){return'<div class="m"><div class="nm">'+esc(nm)+'</div><div class="sp">'+esc(sp)+'</div><div class="v">'+(v!=null?fmtY(v):'—')+'</div><div class="u">稼働率 '+(u!=null?pct(u,1):'—')+'</div><div class="bar"><i style="width:'+Math.min(100,u||0)+'%"></i></div></div>';}
+  var pk=prevM(m)?(S.kpiData[prevM(m)]||{}):{};
   return html+'<div class="grid g4" style="margin-bottom:12px">'
-    +tile({label:'売上合計',value:fmtM(k.laundry_sales),cls:'gold'})+tile({label:'経費合計',value:k.laundry_expense!=null?fmtM(k.laundry_expense):'—'})
-    +tile({label:'営業利益',value:k.laundry_op!=null?fmtM(k.laundry_op):'—',cls:signCls(k.laundry_op)})+tile({label:'全体稼働率',value:pct(k.laundry_util,1),sub:'各機種の全台平均（推定）'})
+    +tile({label:'売上合計',value:fmtM(k.laundry_sales),cls:'gold',d:delta(k.laundry_sales,pk.laundry_sales,'man',1)})+tile({label:'経費合計',value:k.laundry_expense!=null?fmtM(k.laundry_expense):'—',d:delta(k.laundry_expense,pk.laundry_expense,'man',-1)})
+    +tile({label:'営業利益',value:k.laundry_op!=null?fmtM(k.laundry_op):'—',cls:signCls(k.laundry_op),d:delta(k.laundry_op,pk.laundry_op,'man',1)})+tile({label:'全体稼働率',value:pct(k.laundry_util,1),sub:'各機種の全台平均（推定）',d:delta(k.laundry_util,pk.laundry_util,'pct',1)})
     +'</div><div class="card" style="margin-bottom:12px"><div class="ch">機種別</div><div class="mach">'
     +mach('乾燥機 M','中型 10台／300円',k.laundry_dryer_m,k.laundry_util_m)+mach('乾燥機 L','大型 2台／300円',k.laundry_dryer_l,k.laundry_util_l)
     +mach('洗濯乾燥機 XL','1台／1,150円',k.laundry_washer,k.laundry_util_xl)+mach('洗濯機','縦型',k.laundry_washer_v,k.laundry_util_v)
@@ -1578,7 +1720,23 @@ function renderMd(text){
 }
 
 // ───────── 取込パネル ─────────
+function buildGuide(){
+  var groups=[
+    ['損益（もうけの計算）',['売上高','売上原価','売上総利益','販管費','人件費','営業利益','営業利益率','経常利益','純利益','黒字化に必要な累計売上']],
+    ['お金の残り',['月末残高','月平均 販管費','大型支出']],
+    ['スポーツクラブ',['月末会員数','入会者数','退会者数','退会率','ARPU','低稼働枠数']],
+    ['コインランドリー',['稼働率','両替機']],
+    ['貸借対照表（財産と借金）',['貸借対照表','純資産','債務超過','流動比率','自己資本比率']],
+    ['印',['CSV','仮','確定','部門別','共通費']]
+  ];
+  return'<div class="hd"><b>この画面の見方</b><button class="x" data-act="drawer-close">✕</button></div><div class="bd">'
+    +'<div class="gl-start"><b>画面の案内（チュートリアル）</b><div class="note" style="margin:2px 0 8px">実際の画面を枠で照らしながら、順番に説明します。</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm pri" data-act="tour-start" data-name="trend">年度全体の見方（9ステップ）</button><button class="btn sm pri" data-act="tour-start" data-name="month">月ページの見方（7ステップ）</button></div></div>'
+    +'<div class="note" style="margin-bottom:12px">項目名を押す（PCではなぞる）と、その場でも同じ説明が出ます。数字の横の「▲ 前月 +9名」は前月との差で、<span class="d up">緑＝良くなった</span>／<span class="d down">赤＝悪くなった</span>です。</div>'
+    +groups.map(function(g){return'<div class="gl-g"><div class="gl-t">'+esc(g[0])+'</div>'+g[1].map(function(t){return'<div class="gl-r"><b>'+esc(t)+'</b><span>'+esc(GLOSS[t]||'')+'</span></div>';}).join('')+'</div>';}).join('')
+    +'</div>';
+}
 function buildDrawer(){
+  if(S.drawer==='guide')return buildGuide();
   var dm=FM.filter(function(m){return S.finNotes[m]&&S.finNotes[m].bizDept;});
   var bsOk=Object.keys(S.bsData||{}).length>0;
   function imp(t,d,ctl,now,st){return'<div class="imp"><div class="t">'+esc(t)+(st?tag(st[0],st[1]):'')+'</div><div class="d">'+d+'</div><div class="ctl">'+ctl+'</div>'+(now?'<div class="now">'+esc(now)+'</div>':'')+'</div>';}
@@ -1600,6 +1758,79 @@ function buildDrawer(){
     +'</div>';
 }
 
+// ───────── 画面チュートリアル（枠で照らして、次へ・次へ） ─────────
+var TOURS={
+  trend:{name:'年度全体の見方',steps:[
+    {sel:'.months-in',t:'月の切り替え',x:'いちばん左が「年度全体」。その右に5月〜4月が並びます。月の下の数字はその月の純利益（▲は赤字）。点は「KPIあり」「報告書あり」の印です。'},
+    {sel:'#sum .grid',t:'今年度の概況',x:'今年度を4つの数字で。累計の売上・営業利益・純損益と、直近の月末残高。残高の下の「販管費の○か月分」は、今のお金で何か月もつかの目安です。'},
+    {sel:'#pl .grid>div:first-child',t:'売上と販管費の推移',x:'金色が売上、青が販管費（毎月の費用）。青が金色より高い月は赤字です。下の小さな数字がその月の純利益。棒にカーソルを当てると円単位で出ます。'},
+    {sel:'#pl .grid>div:nth-child(2)',t:'売上をどう使ったか',x:'売上を100%として、人件費・変動費・家賃などにいくら使ったか。合計が100%を超えている分が赤字です。「内訳」を押すと科目ごとに開きます。'},
+    {sel:'#cash',t:'資金繰り',x:'左は月末残高の推移、右はこれから払う大きなお金（工事の中間金など）。「予定」と「実績」で分けています。'},
+    {sel:'#biz .grid',t:'事業別のようす',x:'スポーツクラブ・コインランドリー・宿泊を1枚ずつ。数字の下の「▲ 前月 +9名」が前月との差。緑は良くなった、赤は悪くなった、です。'},
+    {sel:'table.yr',t:'月ごとの一覧',x:'同じ数字を月で横に並べた表。前の月より良ければ緑、悪ければ赤に塗ります。会員数・退会率・売上の流れを見るならここです。'},
+    {sel:'#table .card',t:'月次一覧',x:'全月の損益を1枚で。行を押すとその月のページに移ります。「仮」は手入力の数字が残っている月、「集計中」は今月です。'},
+    {sel:'[data-act=guide]',t:'言葉が分からないとき',x:'ここを押すと用語の一言解説が一覧で出ます。画面の中でも、点線の下線が付いた項目名を押す（PCはなぞる）とその場で説明が出ます。'}
+  ]},
+  month:{name:'月ページの見方',steps:[
+    {sel:'.mhead',t:'月の見出し',x:'黒字か赤字か、KPIと報告書がそろっているかが一目で分かります。右の「← 7月」「9月 →」で前後の月へ。'},
+    {sel:'.g5',t:'その月の損益',x:'売上 → 販管費 → 営業利益 → 経常利益 → 純利益。左から右へ「売上からどれだけ残ったか」の順です。下の「▲ 前月 +19万」が前月との差。'},
+    {sel:'.seg',t:'4つのタブ',x:'財務／スポーツクラブ／コインランドリー／経営報告書。金色の点が付いているタブにはその月のデータが入っています。'},
+    {sel:'#finance .card .rows',t:'損益計算書',x:'合計の行だけを出しています。「売上高」「販管費合計」「営業利益」の横の ▸ を押すと内訳が開きます。売上高は事業ごと、販管費は科目ごとです。'},
+    {sel:'#finance .g12',t:'月末残高と大型支出',x:'月末の現金・預金の合計を入れる場所と、その月の大きな支払いのメモ。ここに入れたものが年度全体の「資金繰り」に集まります。'},
+    {sec:'kpi',sel:'#kpi',t:'スポーツクラブ',x:'瑞慶覧さんのKPI報告を読み込んだ数字。売上・会員・稼働・所感の4つの枠に分け、入っている項目だけを出します。「A4で印刷」で朝礼用に1枚にできます。'},
+    {sec:'report',sel:'#report',t:'経営報告書',x:'その月の数字と、進捗・課題・来月の支出・メッセージを入力すると、AIが報告書の下書きを作ります。「内容を直す」で本文を手で直せます。'}
+  ]}
+};
+function startTour(name){
+  S.drawer=false;var to=document.getElementById('tour-toast');if(to)to.remove();try{localStorage.setItem('kd_tour_seen','1');}catch(e){}
+  if(name==='trend'&&S.view!=='trend'){S.view='trend';}
+  if(name==='month'&&S.view==='trend'){var ms=FM.filter(function(m){var d=getEffData(m);return(d.rev>0||d.sg>0)&&!isCurMonth(m);});if(!ms.length)ms=FM.filter(function(m){var d=getEffData(m);return d.rev>0||d.sg>0;});S.view=ms.length?ms[ms.length-1]:'5月';S.selMonth=S.view;}
+  S.sec='finance';S.repMode='view';
+  S.tour={name:name,i:0};
+  render();
+}
+function endTour(){S.tour=null;var t=document.getElementById('tour');if(t)t.innerHTML='';document.body.classList.remove('touring');try{localStorage.setItem('kd_tour_seen','1');}catch(e){}}
+function tourGo(d){
+  var tr=S.tour;if(!tr)return;var steps=TOURS[tr.name].steps;var n=tr.i+d;
+  if(n<0)return;if(n>=steps.length){endTour();return;}
+  tr.i=n;var st=steps[n];
+  if(st.sec&&S.sec!==st.sec){S.sec=st.sec;render();return;}
+  if(!st.sec&&tr.name==='month'&&S.sec!=='finance'){S.sec='finance';render();return;}
+  tourPlace();
+}
+function tourPlace(){
+  var tr=S.tour,host=document.getElementById('tour');if(!tr||!host)return;
+  var steps=TOURS[tr.name].steps,st=steps[tr.i];
+  var el=document.querySelector(st.sel);
+  if(!el){/* この画面に無い要素は飛ばす */var next=tr.i+1;if(next>=steps.length){endTour();return;}tr.i=next;var s2=steps[next];if(s2.sec&&S.sec!==s2.sec){S.sec=s2.sec;render();return;}tourPlace();return;}
+  document.body.classList.add('touring');
+  host.innerHTML='<div class="tour-shade" data-act="tour-end"></div><div class="tour-hi"></div>'
+    +'<div class="tour-pop"><div class="tp-h"><span class="tp-n">'+(tr.i+1)+' / '+steps.length+'</span><b>'+esc(st.t)+'</b><button class="x" data-act="tour-end" title="おわる">✕</button></div>'
+    +'<div class="tp-x">'+esc(st.x)+'</div>'
+    +'<div class="tp-f"><span class="tp-dots">'+steps.map(function(_,k){return'<i class="'+(k===tr.i?'on':k<tr.i?'done':'')+'"></i>';}).join('')+'</span>'
+    +'<span class="tp-btns">'+(tr.i>0?'<button class="btn sm" data-act="tour-prev">← 戻る</button>':'')+'<button class="btn sm pri" data-act="tour-next">'+(tr.i===steps.length-1?'おわる':'次へ →')+'</button></span></div></div>';
+  var r=el.getBoundingClientRect();
+  var vis=r.top>=100&&r.bottom<=window.innerHeight-40;
+  if(!vis){el.scrollIntoView({block:r.height>window.innerHeight*0.6?'start':'center',behavior:'smooth'});setTimeout(tourFit,420);}
+  else tourFit();
+}
+function tourFit(){
+  var tr=S.tour;if(!tr)return;var st=TOURS[tr.name].steps[tr.i];var el=document.querySelector(st.sel);var hi=document.querySelector('.tour-hi'),pop=document.querySelector('.tour-pop');if(!el||!hi||!pop)return;
+  var r=el.getBoundingClientRect(),pad=6;
+  hi.style.left=(r.left-pad)+'px';hi.style.top=(r.top-pad)+'px';hi.style.width=(r.width+pad*2)+'px';hi.style.height=(r.height+pad*2)+'px';
+  var narrow=window.innerWidth<700;
+  if(narrow){pop.style.left='8px';pop.style.right='8px';pop.style.width='auto';pop.style.top='auto';pop.style.bottom='10px';return;}
+  var pw=360;pop.style.width=pw+'px';pop.style.right='auto';pop.style.bottom='auto';
+  var ph=pop.offsetHeight||160;
+  var below=r.bottom+12+ph<window.innerHeight-10;
+  var top=below?r.bottom+12:Math.max(10,r.top-12-ph);
+  if(!below&&r.top-12-ph<10){top=Math.min(window.innerHeight-ph-10,Math.max(10,r.top+20));}
+  var left=Math.min(Math.max(10,r.left),window.innerWidth-pw-10);
+  pop.style.top=top+'px';pop.style.left=left+'px';
+}
+window.addEventListener('resize',function(){if(S.tour)tourFit();});
+window.addEventListener('scroll',function(){if(S.tour)tourFit();},{passive:true});
+
 // ───────── 描画 ─────────
 function render(){
   var content=S.view==='trend'?buildTrend():buildMonth();
@@ -1607,6 +1838,10 @@ function render(){
   var dr=document.getElementById('drawer');dr.innerHTML=buildDrawer();dr.classList.toggle('on',!!S.drawer);document.getElementById('shade').classList.toggle('on',!!S.drawer);
   bindEvents();
   if(S.jump){var el=document.getElementById(S.jump);S.jump=null;if(el)setTimeout(function(){el.scrollIntoView({behavior:'smooth',block:'start'});},30);}
+  if(S.tour)setTimeout(tourPlace,60);else{var th=document.getElementById('tour');if(th&&th.innerHTML){th.innerHTML='';document.body.classList.remove('touring');}}
+  // はじめて開いた人には、案内を1回だけすすめる
+  if(!S.tour&&!S.dbLoading&&Object.keys(S.raw).length&&!document.getElementById('tour-toast')){var seen=false;try{seen=!!localStorage.getItem('kd_tour_seen');}catch(e){}
+    if(!seen){var tt=document.createElement('div');tt.id='tour-toast';tt.className='toast';tt.innerHTML='<span>はじめてですか？ 画面の見方を3分で案内します。</span><button class="btn sm pri" data-act="tour-start" data-name="'+(S.view==='trend'?'trend':'month')+'">案内を見る</button><button class="btn sm ghost" data-act="toast-close">あとで</button>';document.body.appendChild(tt);}}
   // 取込ハンドラ（v24引き継ぎ）が S.sec / S.trendTab を立てたときは、その場所へ送る
   if(S.view==='trend'&&S.trendTab&&S.trendTab!=='pl'){var t={bs:'bs',biz:'dept',kpi:'biz'}[S.trendTab];S.trendTab='pl';if(t){var e2=document.getElementById(t);if(e2)e2.scrollIntoView({block:'start'});}}
 }
@@ -1627,6 +1862,13 @@ function bindEvents(){
       if(act==='fy-prev'){if(S.fy>BASE_FY)switchYear(S.fy-1);return;}
       if(act==='fy-next'){if(S.fy<maxFY())switchYear(S.fy+1);return;}
       if(act==='drawer'){S.drawer=true;render();return;}
+      if(act==='guide'){S.drawer='guide';render();return;}
+      if(act==='tour-start'){var tn=b.dataset.name||(S.view==='trend'?'trend':'month');var to=document.getElementById('tour-toast');if(to)to.remove();try{localStorage.setItem('kd_tour_seen','1');}catch(e){}startTour(tn);return;}
+      if(act==='toast-close'){var to2=document.getElementById('tour-toast');if(to2)to2.remove();try{localStorage.setItem('kd_tour_seen','1');}catch(e){}return;}
+      if(act==='tour-next'){tourGo(1);return;}
+      if(act==='tour-prev'){tourGo(-1);return;}
+      if(act==='tour-end'){endTour();return;}
+      if(act==='print-kpi'){document.body.classList.add('print-kpi');setTimeout(function(){window.print();setTimeout(function(){document.body.classList.remove('print-kpi');},500);},50);return;}
       if(act==='drawer-close'){S.drawer=false;render();return;}
       if(act==='file'){var inp=document.getElementById(b.dataset.for);if(inp)inp.click();return;}
       if(act==='sync'){loadGas();return;}
@@ -1669,7 +1911,10 @@ function bindEvents(){
     app.addEventListener('mouseover',function(e){var t=e.target.closest('[data-tip]');if(!t||!t.dataset.tip){tip.classList.remove('on');return;}tip.textContent=t.dataset.tip;tip.classList.add('on');});
     app.addEventListener('mousemove',function(e){if(!tip.classList.contains('on'))return;var x=e.clientX+14,y=e.clientY+14;if(x+tip.offsetWidth>window.innerWidth-8)x=e.clientX-tip.offsetWidth-10;if(y+tip.offsetHeight>window.innerHeight-8)y=e.clientY-tip.offsetHeight-10;tip.style.left=x+'px';tip.style.top=y+'px';});
     app.addEventListener('mouseout',function(e){if(e.target.closest('[data-tip]'))tip.classList.remove('on');});
-    document.addEventListener('keydown',function(e){if(e.key==='Escape'&&S.drawer){S.drawer=false;render();}});
+    app.addEventListener('click',function(e){var t=e.target.closest('.term');if(!t){if(tip._tap){tip.classList.remove('on');tip._tap=false;}return;}
+      e.stopPropagation();var r=t.getBoundingClientRect();tip.textContent=t.dataset.tip;tip.classList.add('on');tip._tap=true;
+      var x=Math.min(r.left,window.innerWidth-tip.offsetWidth-8),y=r.bottom+6;if(y+tip.offsetHeight>window.innerHeight-8)y=r.top-tip.offsetHeight-6;tip.style.left=Math.max(8,x)+'px';tip.style.top=y+'px';},true);
+    document.addEventListener('keydown',function(e){if(e.key==='Escape'){if(S.tour){endTour();return;}if(S.drawer){S.drawer=false;render();}}if(S.tour&&(e.key==='ArrowRight'||e.key==='Enter'))tourGo(1);if(S.tour&&e.key==='ArrowLeft')tourGo(-1);});
   }
   // ファイル入力（描画のたびに作り直されるので毎回つなぐ）
   function onFile(id,fn){var el=document.getElementById(id);if(el)el.addEventListener('change',function(e){if(e.target.files&&e.target.files[0]){S.drawer=false;fn(e.target.files[0]);}});}

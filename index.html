@@ -140,6 +140,12 @@ body.touring{overflow-x:hidden} body.touring .toast{display:none}
 .gl-start b{font-size:13px}
 @media(max-width:560px){.toast{white-space:normal;border-radius:14px;flex-wrap:wrap;justify-content:center;padding:10px 12px;text-align:center}}
 
+/* ログイン */
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.login-box{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--sh);padding:28px 26px;width:100%;max-width:380px}
+.login-box .brand b{font-size:17px} .login-box .brand small{font-size:12px}
+.login-box input{padding:11px 12px;font-size:15px}
+
 /* ───────── 本文 ───────── */
 main{max-width:1200px;margin:0 auto;padding:22px 24px 90px}
 .sec{margin-bottom:26px;scroll-margin-top:118px}
@@ -368,7 +374,7 @@ input[type=number]{text-align:right;font-variant-numeric:tabular-nums}
 <aside class="drawer" id="drawer"></aside>
 <div id="tour"></div>
 <script>
-var APP_VERSION='v27';
+var APP_VERSION='v28';
 // ===== 以下は v24 から引き継いだ計算・取込ロジック（画面は含まない） =====
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
@@ -884,9 +890,9 @@ async function handleKpi(file){
     else{text=await file.text();}
     if(!text||text.length<30)throw new Error('テキストが読み取れませんでした（'+text.length+'文字）');
     var kpi=null;
-    if(S.gasConnected&&S.gasUrl&&S.adminKey){
+    if(S.gasConnected&&S.gasUrl&&S.auth){
       S.kpiMsg='🤖 AI解析中（GAS経由）...';render();
-      var gr=await fetch(S.gasUrl,{method:'POST',body:JSON.stringify({adminKey:S.adminKey,action:'extract_kpi',text:text.slice(0,5000)})});
+      var gr=await fetch(S.gasUrl,{method:'POST',body:JSON.stringify(withAuth({action:'extract_kpi',text:text.slice(0,5000)}))});
       var gj=await gr.json();
       if(gj&&gj.ok&&gj.kpi){kpi=gj.kpi;}else{throw new Error(gj&&gj.error?gj.error:'GAS経由の解析に失敗しました');}
     }else{
@@ -1003,10 +1009,10 @@ async function submitForm(){
 
   try{
     // GAS経由でのみ生成（ブラウザからの直接API呼び出しはCORSで不可）
-    if(!S.gasConnected||!S.gasUrl||!S.adminKey){
+    if(!S.gasConnected||!S.gasUrl||!S.auth){
       throw new Error('Google Sheets（GAS）に接続してください。\n⚙️ DB設定 → Google Sheets同期 でURLと管理者キーを設定して「接続 & テスト」を押してください。');
     }
-    var res=await fetch(S.gasUrl,{method:'POST',body:JSON.stringify({adminKey:S.adminKey,action:'generate_report',prompt:prompt})});
+    var res=await fetch(S.gasUrl,{method:'POST',body:JSON.stringify(withAuth({action:'generate_report',prompt:prompt}))});
     var rawText=await res.text();
     var j;
     try{j=JSON.parse(rawText);}catch(pe){throw new Error('GAS応答の解析失敗: '+rawText.substring(0,200));}
@@ -1024,14 +1030,15 @@ async function submitForm(){
 
 
 async function gasPost(body){
-  if(!S.gasUrl||!S.adminKey)return;
-  try{await fetch(S.gasUrl,{method:'POST',body:JSON.stringify(Object.assign({adminKey:S.adminKey},body))});}catch(e){}
+  if(!S.gasUrl||!S.auth)return;
+  try{var r=await fetch(S.gasUrl,{method:'POST',body:JSON.stringify(withAuth(body))});var j=await r.json();if(j&&j.error==='auth')authFailed();}catch(e){}
 }
 async function loadGas(){
-  if(!S.gasUrl)return;
+  if(!S.gasUrl||!S.auth)return;
   S.dbLoading=true;S.gasStatus='同期中...';render();
   try{
-    var r=await fetch(S.gasUrl+'?type=all'),j=await r.json();
+    var r=await fetch(S.gasUrl,{method:'POST',body:JSON.stringify(withAuth({action:'read_all'}))}),j=await r.json();
+    if(j&&j.error==='auth'){S.dbLoading=false;authFailed();return;}
     if(j&&j.ok){
       S.years={};
       distribute(j.reports,'reports');
@@ -1069,7 +1076,8 @@ var S={
   selMonth:'5月',view:'trend',sec:'finance',repMode:'view',trendTab:'pl',
   draft:'',iStep:0,iAns:{},formAnswers:{},iInput:'',genLoading:false,genResult:'',finEditPl:null,blockMode:'ytd',bsData:{},bsName:'',
   showSettings:false,
-  gasUrl:'https://script.google.com/macros/s/AKfycbwubL_JEwjoUW_pQqlZQj6gHlTZGgetGvgOkAzeqyJH9HtMC1aHXFTYZBJhSpU6nTls/exec',adminKey:'Takabashira2024',
+  gasUrl:'https://script.google.com/macros/s/AKfycbwubL_JEwjoUW_pQqlZQj6gHlTZGgetGvgOkAzeqyJH9HtMC1aHXFTYZBJhSpU6nTls/exec',
+  auth:null,authMsg:'',authBusy:false,
   gasConnected:true,gasStatus:'',gasTesting:false,dbLoading:false,
   bizCsvRaw:'',bizCsvName:'',bizCsv:null,bizUpMonth:'5月',bizMsg:'',bizMetric:'cost',
   drawer:false,jump:null,plOpen:{},tour:null
@@ -1132,6 +1140,32 @@ function delta(cur,prev,unit,good){
   return'<span class="d '+(ok?'up':'down')+'">'+(d>0?'▲':'▼')+' 前月 '+txt+'</span>';
 }
 var KPI_GOOD={left_members:-1,churn_rate:-1,low_slots:-1,laundry_expense:-1,laundry_gas:-1,laundry_electric:-1,laundry_water:-1,laundry_labor:-1};
+
+// ───────── ログイン（IDとパスワードは Apps Script 側のスクリプト プロパティで照合。HTMLには書かない） ─────────
+function loadAuth(){try{var a=JSON.parse(localStorage.getItem('kd_auth')||'null');if(a&&a.id&&a.pw)S.auth=a;}catch(e){}}
+function withAuth(o){return Object.assign({id:S.auth?S.auth.id:'',pw:S.auth?S.auth.pw:''},o);}
+function authFailed(){S.auth=null;S.authMsg='IDかパスワードが違います';try{localStorage.removeItem('kd_auth');}catch(e){}render();}
+function logout(){S.auth=null;S.authMsg='';S.years={};S.raw={};S.kpiData={};S.reports={};S.finNotes={};S.formAnswers={};S.bsData={};S.drawer=false;try{localStorage.removeItem('kd_auth');}catch(e){}render();}
+function buildLogin(){
+  return'<div class="login"><div class="login-box">'
+    +'<div class="brand" style="margin-bottom:18px"><span class="mark"></span><div><b>タカバシラ</b><small>経営ダッシュボード</small></div></div>'
+    +'<div class="fld"><label>ID（メールアドレス）</label><input id="lg-id" type="email" autocomplete="username" placeholder="info@…" value="'+esc((S.auth&&S.auth.id)||'')+'"/></div>'
+    +'<div class="fld"><label>パスワード</label><input id="lg-pw" type="password" autocomplete="current-password"/></div>'
+    +(S.authMsg?'<div class="msg ng" style="margin:0 0 10px">'+esc(S.authMsg)+'</div>':'')
+    +'<button class="btn pri" style="width:100%;justify-content:center;padding:11px" data-act="login"'+(S.authBusy?' disabled':'')+'>'+(S.authBusy?'確認中…':'開く')+'</button>'
+    +'<div class="note" style="margin-top:12px">この端末に記憶します。共有の端末では、右上「見方」の下にある「ログアウト」で消してください。</div>'
+    +'</div></div>';
+}
+async function doLogin(){
+  var id=(document.getElementById('lg-id')||{}).value||'',pw=(document.getElementById('lg-pw')||{}).value||'';
+  id=id.trim();if(!id||!pw){S.authMsg='IDとパスワードを入れてください';render();return;}
+  S.auth={id:id,pw:pw};S.authMsg='';S.authBusy=true;render();
+  try{
+    var r=await fetch(S.gasUrl,{method:'POST',body:JSON.stringify(withAuth({action:'ping'}))});var j=await r.json();
+    if(j&&j.ok){try{localStorage.setItem('kd_auth',JSON.stringify(S.auth));}catch(e){}S.authBusy=false;render();loadGas();return;}
+    S.authBusy=false;authFailed();
+  }catch(e){S.authBusy=false;S.auth=null;S.authMsg='つながりません（'+e.message+'）';render();}
+}
 
 // ───────── 小さな部品 ─────────
 function cls(){return Array.prototype.slice.call(arguments).filter(Boolean).join(' ');}
@@ -1798,6 +1832,7 @@ function buildGuide(){
     +'<div class="gl-start"><b>画面の案内（チュートリアル）</b><div class="note" style="margin:2px 0 8px">実際の画面を枠で照らしながら、順番に説明します。</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm pri" data-act="tour-start" data-name="trend">年度全体の見方（10ステップ）</button><button class="btn sm pri" data-act="tour-start" data-name="month">月ページの見方（7ステップ）</button></div></div>'
     +'<div class="note" style="margin-bottom:12px">項目名を押す（PCではなぞる）と、その場でも同じ説明が出ます。数字の横の「▲ 前月 +9名」は前月との差で、<span class="d up">緑＝良くなった</span>／<span class="d down">赤＝悪くなった</span>です。</div>'
     +groups.map(function(g){return'<div class="gl-g"><div class="gl-t">'+esc(g[0])+'</div>'+g[1].map(function(t){return'<div class="gl-r"><b>'+esc(t)+'</b><span>'+esc(GLOSS[t]||'')+'</span></div>';}).join('')+'</div>';}).join('')
+    +'<div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px"><span class="note">ログイン中：'+esc(S.auth?S.auth.id:'')+'</span><button class="btn sm ghost danger" data-act="logout" style="margin-left:auto">ログアウト</button></div>'
     +'</div>';
 }
 function buildDrawer(){
@@ -1899,6 +1934,7 @@ window.addEventListener('scroll',function(){if(S.tour)tourFit();},{passive:true}
 
 // ───────── 描画 ─────────
 function render(){
+  if(!S.auth){document.getElementById('app').innerHTML=buildLogin();var dr0=document.getElementById('drawer');dr0.innerHTML='';dr0.classList.remove('on');document.getElementById('shade').classList.remove('on');var th0=document.getElementById('tour');if(th0)th0.innerHTML='';var tt0=document.getElementById('tour-toast');if(tt0)tt0.remove();bindEvents();setTimeout(function(){var f=document.getElementById(S.auth?'':'lg-id');if(f)f.focus();},30);return;}
   var content=S.view==='trend'?buildTrend():buildMonth();
   document.getElementById('app').innerHTML=buildHeader()+buildMonths()+'<main>'+content+'</main>';
   var dr=document.getElementById('drawer');dr.innerHTML=buildDrawer();dr.classList.toggle('on',!!S.drawer);document.getElementById('shade').classList.toggle('on',!!S.drawer);
@@ -1927,6 +1963,8 @@ function bindEvents(){
       if(act==='sec'){S.sec=b.dataset.v;render();var sg=document.querySelector('.seg');if(sg&&sg.getBoundingClientRect().top<110)sg.scrollIntoView({block:'start'});return;}
       if(act==='fy-prev'){if(S.fy>BASE_FY)switchYear(S.fy-1);return;}
       if(act==='fy-next'){if(S.fy<maxFY())switchYear(S.fy+1);return;}
+      if(act==='login'){doLogin();return;}
+      if(act==='logout'){if(confirm('この端末からログアウトしますか？'))logout();return;}
       if(act==='drawer'){S.drawer=true;render();return;}
       if(act==='guide'){S.drawer='guide';render();return;}
       if(act==='tour-start'){var tn=b.dataset.name||(S.view==='trend'?'trend':'month');var to=document.getElementById('tour-toast');if(to)to.remove();try{localStorage.setItem('kd_tour_seen','1');}catch(e){}startTour(tn);return;}
@@ -1962,7 +2000,7 @@ function bindEvents(){
       if(act==='rep-delete'){if(!confirm('「'+S.selMonth+'」の報告書を削除しますか？この操作は取り消せません。'))return;S.reports=Object.assign({},S.reports);delete S.reports[S.selMonth];S.repMode='view';gasPost({action:'delete_report',month:gkey(S.fy,S.selMonth)});S.jump='report';render();return;}
       if(act==='rep-edit'){var rep=S.reports[S.selMonth]||{};S.draft=rep.text||'';S.iAns={};S.repMode='edit';S.jump='report';
         if(S.formAnswers&&S.formAnswers[S.selMonth]){S.iAns=Object.assign({},S.formAnswers[S.selMonth]);render();}
-        else{render();fetch(S.gasUrl+'?type=ians').then(function(r){return r.json();}).then(function(j){if(j&&j.ok&&j.formAnswers){mergeFormAnswers(j.formAnswers);if(S.formAnswers[S.selMonth]){S.iAns=Object.assign({},S.formAnswers[S.selMonth]);render();}}}).catch(function(){});}
+        else{render();fetch(S.gasUrl,{method:'POST',body:JSON.stringify(withAuth({action:'read_ians'}))}).then(function(r){return r.json();}).then(function(j){if(j&&j.ok&&j.formAnswers){mergeFormAnswers(j.formAnswers);if(S.formAnswers[S.selMonth]){S.iAns=Object.assign({},S.formAnswers[S.selMonth]);render();}}}).catch(function(){});}
         return;}
       if(act==='rep-submit'){submitForm();return;}
       if(act==='rep-save-gen'){var d={text:S.genResult,savedAt:new Date().toLocaleDateString('ja-JP'),iAns:S.iAns};S.reports=Object.assign({},S.reports);S.reports[S.selMonth]=d;gasPost({action:'save_report',month:gkey(S.fy,S.selMonth),data:d});S.repMode='view';S.jump='report';render();return;}
@@ -1980,7 +2018,7 @@ function bindEvents(){
     app.addEventListener('click',function(e){var t=e.target.closest('.term');if(!t){if(tip._tap){tip.classList.remove('on');tip._tap=false;}return;}
       e.stopPropagation();var r=t.getBoundingClientRect();tip.textContent=t.dataset.tip;tip.classList.add('on');tip._tap=true;
       var x=Math.min(r.left,window.innerWidth-tip.offsetWidth-8),y=r.bottom+6;if(y+tip.offsetHeight>window.innerHeight-8)y=r.top-tip.offsetHeight-6;tip.style.left=Math.max(8,x)+'px';tip.style.top=y+'px';},true);
-    document.addEventListener('keydown',function(e){if(e.key==='Escape'){if(S.tour){endTour();return;}if(S.drawer){S.drawer=false;render();}}if(S.tour&&(e.key==='ArrowRight'||e.key==='Enter'))tourGo(1);if(S.tour&&e.key==='ArrowLeft')tourGo(-1);});
+    document.addEventListener('keydown',function(e){if(e.key==='Enter'&&!S.auth&&e.target&&/lg-/.test(e.target.id||'')){doLogin();return;}if(e.key==='Escape'){if(S.tour){endTour();return;}if(S.drawer){S.drawer=false;render();}}if(S.tour&&(e.key==='ArrowRight'||e.key==='Enter'))tourGo(1);if(S.tour&&e.key==='ArrowLeft')tourGo(-1);});
   }
   // ファイル入力（描画のたびに作り直されるので毎回つなぐ）
   function onFile(id,fn){var el=document.getElementById(id);if(el)el.addEventListener('change',function(e){if(e.target.files&&e.target.files[0]){S.drawer=false;fn(e.target.files[0]);}});}
@@ -2009,8 +2047,9 @@ function saveKpi(){
   S.kpiData=Object.assign({},S.kpiData);S.kpiData[S.selMonth]=kpi;gasPost({action:'save_kpi',month:gkey(S.fy,S.selMonth),data:kpi});S.kpiEditMode=null;S.jump='kpi';render();
 }
 
+loadAuth();
 render();
-if(S.gasConnected)loadGas();
+if(S.gasConnected&&S.auth)loadGas();
 
 </script>
 </body>

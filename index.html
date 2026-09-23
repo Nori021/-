@@ -368,7 +368,7 @@ input[type=number]{text-align:right;font-variant-numeric:tabular-nums}
 <aside class="drawer" id="drawer"></aside>
 <div id="tour"></div>
 <script>
-var APP_VERSION='v26';
+var APP_VERSION='v27';
 // ===== 以下は v24 から引き継いだ計算・取込ロジック（画面は含まない） =====
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
@@ -1162,7 +1162,7 @@ function svgBars(o){
   var maxV=0;series.forEach(function(s){s.vals.forEach(function(v){if(v>maxV)maxV=v;});});
   if(maxV<=0)maxV=1;
   // 目盛りは切りのいい万円
-  var step=niceStep(maxV/3);var top=Math.ceil(maxV/step)*step;
+  var ax=axisTicks(maxV),top=ax.top;
   var ih=H-padT-padB,iw=W-padL-padR;
   var slot=iw/months.length;var n=series.length;
   var bw=Math.min(24,(slot*0.62)/n);var gap=2;
@@ -1170,9 +1170,9 @@ function svgBars(o){
   var lblIdx=o.labelIdx!=null?o.labelIdx:months.length-1;
   var out='<svg class="chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="height:'+H+'px">';
   // 目盛り線
-  for(var g=0;g<=3;g++){var gv=top*g/3,gy=y(gv);
-    out+='<line class="'+(g===0?'base':'grid')+'" x1="'+padL+'" x2="'+(W-padR)+'" y1="'+gy+'" y2="'+gy+'"/>';
-    out+='<text class="ax" x="'+(padL-6)+'" y="'+(gy+4)+'" text-anchor="end">'+Math.round(gv/10000).toLocaleString()+'</text>';}
+  ax.ticks.forEach(function(gv){var gy=y(gv);
+    out+='<line class="'+(gv===0?'base':'grid')+'" x1="'+padL+'" x2="'+(W-padR)+'" y1="'+gy+'" y2="'+gy+'"/>';
+    out+='<text class="ax" x="'+(padL-6)+'" y="'+(gy+4)+'" text-anchor="end">'+Math.round(gv/10000).toLocaleString()+'</text>';});
   months.forEach(function(m,i){
     var x0=padL+slot*i;var gx=x0+(slot-(bw*n+gap*(n-1)))/2;
     series.forEach(function(s,k){
@@ -1189,6 +1189,7 @@ function svgBars(o){
 }
 function roundTop(x,y,w,h,r){if(h<=r)return'M'+x+' '+(y+h)+'h'+w+'v-'+h+'h-'+w+'z';
   return'M'+x+' '+(y+h)+'v-'+(h-r)+'a'+r+' '+r+' 0 0 1 '+r+' -'+r+'h'+(w-2*r)+'a'+r+' '+r+' 0 0 1 '+r+' '+r+'v'+(h-r)+'z';}
+function axisTicks(mx){if(mx<=0)mx=1;var step=niceStep(mx/4);var top=Math.ceil(mx/step)*step;var n=Math.round(top/step);if(n>6){step*=2;top=Math.ceil(mx/step)*step;n=Math.round(top/step);}var t=[];for(var i=0;i<=n;i++)t.push(step*i);return{top:top,ticks:t};}
 function niceStep(v){if(v<=0)return 1;var p=Math.pow(10,Math.floor(Math.log10(v)));var f=v/p;var s=f<=1?1:f<=2?2:f<=5?5:10;return s*p;}
 // 折れ線（1系列）。端点だけ値を出す。マーカーは白リング付き。
 function svgLine(o){
@@ -1196,12 +1197,12 @@ function svgLine(o){
   var months=o.months,vals=o.vals,color=o.color||CH.deep;
   var mx=Math.max.apply(null,vals.map(function(v){return Math.abs(v);}));if(mx<=0)mx=1;
   var hasNeg=vals.some(function(v){return v<0;});
-  var step=niceStep(mx/3);var top=Math.ceil(mx/step)*step;var bot=hasNeg?-top:0;
+  var ax=axisTicks(mx),top=ax.top;var bot=hasNeg?-top:0;
   var ih=H-padT-padB,iw=W-padL-padR;var slot=iw/Math.max(1,months.length);
   function y(v){return padT+ih-((v-bot)/(top-bot))*ih;}
   function x(i){return padL+slot*i+slot/2;}
   var out='<svg class="chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="height:'+H+'px">';
-  var ticks=hasNeg?[bot,0,top]:[0,top/2,top];
+  var ticks=hasNeg?[bot,0,top]:ax.ticks;
   ticks.forEach(function(gv){var gy=y(gv);out+='<line class="'+(gv===0?'base':'grid')+'" x1="'+padL+'" x2="'+(W-padR)+'" y1="'+gy+'" y2="'+gy+'"/>';
     out+='<text class="ax" x="'+(padL-6)+'" y="'+(gy+4)+'" text-anchor="end">'+(gv<0?'▲':'')+Math.round(Math.abs(gv)/10000).toLocaleString()+'</text>';});
   if(months.length){
@@ -1217,6 +1218,70 @@ function svgLine(o){
     out+='<rect class="hit" x="'+(padL+slot*i)+'" y="'+padT+'" width="'+slot+'" height="'+(ih+padB-6)+'" data-tip="'+esc(o.tips?o.tips[i]:'')+'"/>';});
   out+='</svg>';
   return out;
+}
+
+// 折れ線（複数系列・%用）。端に系列名を直接書く（色だけに頼らない）。validate_palette 済みの4色
+var CH4=['#10539C','#B8860B','#3C8A5E','#8C4A9E'];
+function svgLines(o){
+  var W=640,H=o.h||190,padL=40,padR=118,padT=14,padB=26;
+  var months=o.months,series=o.series;
+  var mx=0;series.forEach(function(sr){sr.vals.forEach(function(v){if(v!=null&&v>mx)mx=v;});});if(mx<=0)mx=1;
+  var ax=axisTicks(mx),top=ax.top;
+  var ih=H-padT-padB,iw=W-padL-padR;var slot=iw/Math.max(1,months.length);
+  function y(v){return padT+ih-(v/top)*ih;}function x(i){return padL+slot*i+slot/2;}
+  var out='<svg class="chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="height:'+H+'px">';
+  ax.ticks.forEach(function(gv){var gy=y(gv);out+='<line class="'+(gv===0?'base':'grid')+'" x1="'+padL+'" x2="'+(W-padR)+'" y1="'+gy+'" y2="'+gy+'"/><text class="ax" x="'+(padL-6)+'" y="'+(gy+4)+'" text-anchor="end">'+Math.round(gv*10)/10+(o.unit||'')+'</text>';});
+  var ends=[];
+  series.forEach(function(sr,k){
+    var pts=[];sr.vals.forEach(function(v,i){if(v!=null&&v!=='')pts.push([x(i),y(v),v]);});if(!pts.length)return;
+    var d=pts.map(function(p,i){return(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1);}).join('');
+    out+='<path d="'+d+'" fill="none" stroke="'+sr.color+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>';
+    pts.forEach(function(p){out+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="6" fill="#fff"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="4" fill="'+sr.color+'"/>';});
+    var last=pts[pts.length-1];ends.push({y:last[1],x:last[0],name:sr.name,v:last[2],color:sr.color});
+  });
+  // 端のラベルが重ならないように上下にずらす
+  ends.sort(function(a,b){return a.y-b.y;});for(var i=1;i<ends.length;i++){if(ends[i].y-ends[i-1].y<13)ends[i].y=ends[i-1].y+13;}
+  ends.forEach(function(e){out+='<line x1="'+(e.x+5)+'" y1="'+e.y+'" x2="'+(W-padR+6)+'" y2="'+e.y+'" stroke="'+e.color+'" stroke-width="1" opacity=".5"/><text class="lbl" x="'+(W-padR+9)+'" y="'+(e.y+4)+'">'+esc(e.name)+' '+(Math.round(e.v*10)/10)+(o.unit||'')+'</text>';});
+  months.forEach(function(m,i){out+='<text class="ax" x="'+x(i)+'" y="'+(H-padB+15)+'" text-anchor="middle">'+esc(monthNo(m))+'月</text><rect class="hit" x="'+(padL+slot*i)+'" y="'+padT+'" width="'+slot+'" height="'+(ih+padB-6)+'" data-tip="'+esc(o.tips?o.tips[i]:'')+'"/>';});
+  return out+'</svg>';
+}
+// 積み上げ棒（機種別の売上）。段の間は2pxの白
+function svgStack(o){
+  var W=640,H=o.h||190,padL=44,padR=10,padT=18,padB=26;
+  var months=o.months,series=o.series;
+  var tots=months.map(function(_,i){return series.reduce(function(a,sr){return a+(sr.vals[i]||0);},0);});
+  var mx=Math.max.apply(null,tots);var ax=axisTicks(mx),top=ax.top;
+  var ih=H-padT-padB,iw=W-padL-padR;var slot=iw/months.length;var bw=Math.min(28,slot*0.55);
+  function y(v){return padT+ih-(v/top)*ih;}
+  var out='<svg class="chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="height:'+H+'px">';
+  ax.ticks.forEach(function(gv){var gy=y(gv);out+='<line class="'+(gv===0?'base':'grid')+'" x1="'+padL+'" x2="'+(W-padR)+'" y1="'+gy+'" y2="'+gy+'"/><text class="ax" x="'+(padL-6)+'" y="'+(gy+4)+'" text-anchor="end">'+Math.round(gv/10000).toLocaleString()+'</text>';});
+  months.forEach(function(m,i){
+    var x0=padL+slot*i+(slot-bw)/2,acc=0;
+    series.forEach(function(sr,k){var v=sr.vals[i]||0;if(v<=0)return;var h=ih*(v/top);var yTop=y(acc+v);
+      out+='<rect x="'+x0+'" y="'+(yTop+(acc?1:0))+'" width="'+bw+'" height="'+Math.max(0,h-(acc?1:0)-1)+'" fill="'+sr.color+'"'+(k===series.length-1||acc===0&&k===0?' rx="0"':'')+'/>';acc+=v;});
+    if(tots[i]>0)out+='<text class="lbl" x="'+(x0+bw/2)+'" y="'+(y(tots[i])-5)+'" text-anchor="middle">'+Math.round(tots[i]/10000)+'</text>';
+    out+='<text class="ax" x="'+(padL+slot*i+slot/2)+'" y="'+(H-padB+15)+'" text-anchor="middle">'+esc(monthNo(m))+'月</text><rect class="hit" x="'+(padL+slot*i)+'" y="'+padT+'" width="'+slot+'" height="'+(ih+padB-6)+'" data-tip="'+esc(o.tips?o.tips[i]:'')+'"/>';
+  });
+  return out+'</svg>';
+}
+function legend(series){return'<div class="legend">'+series.map(function(sr){return'<span><i style="background:'+sr.color+'"></i>'+esc(sr.name)+'</span>';}).join('')+'</div>';}
+
+// コインランドリー 機種別の推移（稼働率＝折れ線／売上＝積み上げ）
+function buildLaundryTrend(){
+  var ms=FM.filter(function(m){var k=S.kpiData[m];return k&&(k.laundry_util_m!=null||k.laundry_dryer_m!=null);});
+  if(ms.length<2)return'';
+  var TYPES=[{name:'乾燥機M',u:'laundry_util_m',s:'laundry_dryer_m'},{name:'乾燥機L',u:'laundry_util_l',s:'laundry_dryer_l'},{name:'洗濯乾燥機XL',u:'laundry_util_xl',s:'laundry_washer'},{name:'洗濯機',u:'laundry_util_v',s:'laundry_washer_v'}];
+  var uSer=TYPES.map(function(t,k){return{name:t.name,color:CH4[k],vals:ms.map(function(m){var v=S.kpiData[m][t.u];return v!=null&&v!==''?+v:null;})};}).filter(function(sr){return sr.vals.some(function(v){return v!=null;});});
+  var sSer=TYPES.map(function(t,k){return{name:t.name,color:CH4[k],vals:ms.map(function(m){return +(S.kpiData[m][t.s]||0);})};}).filter(function(sr){return sr.vals.some(function(v){return v>0;});});
+  var uTips=ms.map(function(m){var k=S.kpiData[m];return m+' 稼働率\n'+TYPES.map(function(t){return t.name+' '+(k[t.u]!=null?pct(k[t.u],1):'—');}).join('\n');});
+  var sTips=ms.map(function(m){var k=S.kpiData[m];return m+' 売上\n'+TYPES.map(function(t){return t.name+' '+(k[t.s]!=null?fmtY(k[t.s]):'—');}).join('\n')+'\n合計 '+fmtY(k.laundry_sales);});
+  // ひとこと：稼働率がいちばん高い機種と低い機種（直近月）
+  var lk=S.kpiData[ms[ms.length-1]];var ranked=TYPES.filter(function(t){return lk[t.u]!=null;}).sort(function(a,b){return lk[b.u]-lk[a.u];});
+  var note=ranked.length>=2?ms[ms.length-1]+'は '+ranked[0].name+'（'+pct(lk[ranked[0].u],1)+'）が最も動き、'+ranked[ranked.length-1].name+'（'+pct(lk[ranked[ranked.length-1].u],1)+'）が最も空いています。':'';
+  return'<div class="grid g2" id="ltrend" style="margin-top:12px">'
+    +'<div class="card"><div class="ch">'+lab('稼働率')+' 機種別の推移<span class="r">単位：%・各機種の全台平均</span></div>'+legend(uSer)+svgLines({months:ms,series:uSer,unit:'%',h:200,tips:uTips})+(note?'<div class="note" style="margin-top:6px">'+esc(note)+'</div>':'')+'</div>'
+    +'<div class="card"><div class="ch">売上 機種別の推移<span class="r">単位：万円・上の数字は合計</span></div>'+legend(sSer)+svgStack({months:ms,series:sSer,h:200,tips:sTips})+'<div class="note" style="margin-top:6px">両替機の抜取は売上に含めていません。</div></div>'
+    +'</div>';
 }
 
 // ───────── 上部（ブランド・年度・同期・取込） ─────────
@@ -1335,7 +1400,7 @@ function buildTrend(){
   var bizHtml='<section class="sec" id="biz">'
     +secH('biz','事業別のようす','スポーツクラブ・コインランドリー・宿泊')
     +'<div class="grid g3">'+buildBizSports()+buildBizLaundry()+buildBizStay()+'</div>'
-    +buildKpiYearTable()+'</section>';
+    +buildKpiYearTable()+buildLaundryTrend()+'</section>';
 
   // ── 部門別 ──
   var deptHtml=deptMonths.length?'<section class="sec" id="dept">'+secH('dept','部門別の収支','マネーフォワードの部門別集計表から。'+deptMonths.join('・')+'が取込済')+buildDeptTable(deptMonths)+'</section>':'';
@@ -1730,7 +1795,7 @@ function buildGuide(){
     ['印',['CSV','仮','確定','部門別','共通費']]
   ];
   return'<div class="hd"><b>この画面の見方</b><button class="x" data-act="drawer-close">✕</button></div><div class="bd">'
-    +'<div class="gl-start"><b>画面の案内（チュートリアル）</b><div class="note" style="margin:2px 0 8px">実際の画面を枠で照らしながら、順番に説明します。</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm pri" data-act="tour-start" data-name="trend">年度全体の見方（9ステップ）</button><button class="btn sm pri" data-act="tour-start" data-name="month">月ページの見方（7ステップ）</button></div></div>'
+    +'<div class="gl-start"><b>画面の案内（チュートリアル）</b><div class="note" style="margin:2px 0 8px">実際の画面を枠で照らしながら、順番に説明します。</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm pri" data-act="tour-start" data-name="trend">年度全体の見方（10ステップ）</button><button class="btn sm pri" data-act="tour-start" data-name="month">月ページの見方（7ステップ）</button></div></div>'
     +'<div class="note" style="margin-bottom:12px">項目名を押す（PCではなぞる）と、その場でも同じ説明が出ます。数字の横の「▲ 前月 +9名」は前月との差で、<span class="d up">緑＝良くなった</span>／<span class="d down">赤＝悪くなった</span>です。</div>'
     +groups.map(function(g){return'<div class="gl-g"><div class="gl-t">'+esc(g[0])+'</div>'+g[1].map(function(t){return'<div class="gl-r"><b>'+esc(t)+'</b><span>'+esc(GLOSS[t]||'')+'</span></div>';}).join('')+'</div>';}).join('')
     +'</div>';
@@ -1768,6 +1833,7 @@ var TOURS={
     {sel:'#cash',t:'資金繰り',x:'左は月末残高の推移、右はこれから払う大きなお金（工事の中間金など）。「予定」と「実績」で分けています。'},
     {sel:'#biz .grid',t:'事業別のようす',x:'スポーツクラブ・コインランドリー・宿泊を1枚ずつ。数字の下の「▲ 前月 +9名」が前月との差。緑は良くなった、赤は悪くなった、です。'},
     {sel:'table.yr',t:'月ごとの一覧',x:'同じ数字を月で横に並べた表。前の月より良ければ緑、悪ければ赤に塗ります。会員数・退会率・売上の流れを見るならここです。'},
+    {sel:'#ltrend',t:'ランドリーの機種別',x:'左は機種ごとの稼働率の折れ線、右は機種ごとの売上の積み上げ。どの機械が働いていて、どれが空いているかが分かります。'},
     {sel:'#table .card',t:'月次一覧',x:'全月の損益を1枚で。行を押すとその月のページに移ります。「仮」は手入力の数字が残っている月、「集計中」は今月です。'},
     {sel:'[data-act=guide]',t:'言葉が分からないとき',x:'ここを押すと用語の一言解説が一覧で出ます。画面の中でも、点線の下線が付いた項目名を押す（PCはなぞる）とその場で説明が出ます。'}
   ]},

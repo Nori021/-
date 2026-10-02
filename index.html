@@ -374,7 +374,7 @@ input[type=number]{text-align:right;font-variant-numeric:tabular-nums}
 <aside class="drawer" id="drawer"></aside>
 <div id="tour"></div>
 <script>
-var APP_VERSION='v29';
+var APP_VERSION='v30';
 // ===== 以下は v24 から引き継いだ計算・取込ロジック（画面は含まない） =====
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
@@ -626,7 +626,9 @@ function getEffData(m){
   var note=S.finNotes[m]||{},pt=note.pl_temp||{};
   function gRaw(key){var d=S.raw[key];if(!d)return 0;var v=d[m];return(v!=null&&v!=='')?(+v)||0:0;}
   function gPt(key){var e=pt[key];if(e==null)return null;if(typeof e==='object')return e;return{v:e,confirmed:false};}
-  function eff(key){var p=gPt(key);if(p!=null&&p.v!=null){if(p.confirmed)return p.v;var rw=gRaw(key);return rw!==0?rw:p.v;}return gRaw(key);}
+  // 2026-10-02：手入力（仮・確定とも）は常にCSVより優先する。以前は「CSVに値があれば仮を無視」していて、
+  // 月の途中（CSVが一部だけ）に入れた仮の見込みが消えていた。CSVに戻すには編集で欄を空にして保存する
+  function eff(key){var p=gPt(key);if(p!=null&&p.v!=null)return p.v;return gRaw(key);}
   // 各項目は「手入力があればその値、なければCSV」。合計はそれらから再計算（無編集ならCSVと一致）
   var effRev=eff('売上高合計')||eff('売上高');
   var effCogs=eff('売上原価合計');
@@ -640,7 +642,7 @@ function getEffData(m){
   return{month:m,rev:effRev,cogs:effCogs,gross:effGross,sg:effSg,op:effOp,eco:effEco,net:effNet};
 }
 // その月に「仮」（未確定の手入力）が1つでも含まれるか
-function hasTempMonth(m){var n=S.finNotes[m];if(!n||!n.pl_temp)return false;return Object.keys(n.pl_temp).some(function(k){var e=n.pl_temp[k];if(e==null)return false;var isTemp=(typeof e==='object')?(e.v!=null&&!e.confirmed):true;if(!isTemp)return false;var d=S.raw[k];var raw=(d&&d[m]!=null&&d[m]!=='')?(+d[m])||0:0;return raw===0;});}
+function hasTempMonth(m){var n=S.finNotes[m];if(!n||!n.pl_temp)return false;return Object.keys(n.pl_temp).some(function(k){var e=n.pl_temp[k];if(e==null)return false;return(typeof e==='object')?(e.v!=null&&!e.confirmed):true;});}
 
 function parseBsCSV(text){
   if(!text||!text.trim())return{};
@@ -959,7 +961,8 @@ function buildReportPrompt(m,a){
   // 販管費の内訳（今月と前月）
   var sgKeys=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費','支払手数料','支払報酬','修繕費'];
   function raw(k,mm){var d=S.raw[k];if(!d)return 0;var v=d[mm];return(v!=null&&v!=='')?(+v)||0:0;}
-  var sgLines=sgKeys.map(function(k){var c=raw(k,m);if(!c&&!(pm&&raw(k,pm)))return null;return'  '+k+': '+fmtY(c)+(pm?diffY(c,raw(k,pm)):'');}).filter(Boolean).join(nl);
+  function effK(k,mm){var pt=((S.finNotes[mm]||{}).pl_temp||{})[k];if(pt!=null&&(typeof pt!=='object'||pt.v!=null))return{v:(typeof pt==='object'?pt.v:pt),st:(typeof pt==='object'&&pt.confirmed)?'確定・手入力':'仮・手入力の見込み'};return{v:raw(k,mm),st:''};}
+  var sgLines=sgKeys.map(function(k){var c=effK(k,m),p=pm?effK(k,pm):null;if(!c.v&&!(p&&p.v))return null;return'  '+k+': '+fmtY(c.v)+(c.st?'（'+c.st+'）':'')+(p?diffY(c.v,p.v):'');}).filter(Boolean).join(nl);
   // KPI（今月・前月）
   var pk=pm?(S.kpiData[pm]||{}):{};
   var gymCats={'売上':1,'会員':1,'稼働':1};
@@ -1021,7 +1024,7 @@ function buildReportPrompt(m,a){
   ].join(nl);
 
   var prompt=[
-    '対象月: '+fyLabel(S.fy)+' '+m+(hasTempMonth(m)?'（仮の手入力を含む。対外資料には使わない旨を①で一言）':''),
+    '対象月: '+fyLabel(S.fy)+' '+m+(hasTempMonth(m)?'（「仮」の手入力＝未確定の見込みを含む。①で「仮の数字を含む見込み」と一言添え、仮の科目はそのことが分かるように書く）':''),
     '',
     '■ 損益（今月）: '+pl(cur),
     pm?'■ 損益（前月 '+pm+'）: '+pl(pd):'■ 前月のデータなし',
@@ -1152,8 +1155,8 @@ var GLOSS={
   '大型支出':'工事の中間金や設備など、ふだんの月にはない大きな支払い',
   '部門別':'販管費を、スポーツクラブ・ランドリー・宿泊・共通のどこで使ったかに分けたもの',
   '共通費':'どの事業にも分けられない費用（本部の経費など）',
-  '仮':'CSVにまだ無く、手で入れた仮の数字。確定したら置き換わる',
-  '確定':'手で入れた数字を正として使う設定。CSVより優先',
+  '仮':'手で入れた未確定の見込み。CSVより優先して表示し、報告書には「仮」と注記される。CSVに戻すには欄を空にして保存',
+  '確定':'手で入れた確定の数字。CSVより優先して表示する',
   'CSV':'マネーフォワードから取り込んだ数字',
   '両替機':'両替機から抜き取った現金。売上ではないので合計に入れない'
 };
@@ -1664,8 +1667,8 @@ function buildFinance(m,md,has){
     var plTemp=note.pl_temp||{},editPl=(S.finEditPl===m);
     function getRaw(key){var d=S.raw[key];if(!d)return 0;var v=d[m];return(v!=null&&v!=='')?(+v)||0:0;}
     function getPt(key){var e=plTemp[key];if(e==null)return null;if(typeof e==='object')return e;return{v:e,confirmed:false};}
-    function effVal(key){var pt=getPt(key);if(pt!=null&&pt.v!=null){if(pt.confirmed)return pt.v;var rw=getRaw(key);return rw!==0?rw:pt.v;}return getRaw(key);}
-    function getStatus(key){var pt=getPt(key),raw=getRaw(key);if(pt==null)return raw!==0?'csv':'none';if(pt.confirmed)return raw!==0?'override':'confirmed';return raw!==0?'csv':'temp';}
+    function effVal(key){var pt=getPt(key);if(pt!=null&&pt.v!=null)return pt.v;return getRaw(key);}
+    function getStatus(key){var pt=getPt(key),raw=getRaw(key);if(pt==null||pt.v==null)return raw!==0?'csv':'none';if(pt.confirmed)return raw!==0?'override':'confirmed';return 'temp';}
     var sgKeys=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費'];
     var sgItemsSum=0;sgKeys.forEach(function(k){sgItemsSum+=effVal(k);});
     var sgOther=md.sg-sgItemsSum;
@@ -1707,7 +1710,8 @@ function buildFinance(m,md,has){
       if(editPl&&r.e){
         main='<div class="row"><span class="k"><span class="kt">'+esc(r.label||r.key)+'</span>'+(r.sub?tg:'')+'</span>'+sb(st)
           +'<select class="pl-status-sel" data-key="'+esc(r.key)+'" style="width:auto;padding:4px 6px;font-size:11.5px"><option value="temp"'+(pt?(!pt.confirmed?' selected':''):(getRaw(r.key)===0?' selected':''))+'>仮</option><option value="confirmed"'+(pt?(pt.confirmed?' selected':''):(getRaw(r.key)!==0?' selected':''))+'>確定（上書き）</option></select>'
-          +'<input class="pl-temp-inp in" data-key="'+esc(r.key)+'" type="number" value="'+(pt!=null?pt.v:getRaw(r.key)||'')+'" placeholder="円"/></div>';
+          +'<span class="mut" style="font-size:11px;white-space:nowrap">CSV '+(getRaw(r.key)?Math.round(getRaw(r.key)).toLocaleString():'—')+'</span>'
+          +'<input class="pl-temp-inp in" data-key="'+esc(r.key)+'" type="number" value="'+(pt!=null?pt.v:getRaw(r.key)||'')+'" placeholder="空＝CSVの値"/></div>';
       }else{
         main='<div class="row'+(r.b?' b':'')+(r.sub?' has-sub':'')+'"'+(r.sub?' data-act="tg" data-t="'+r.id+'"':'')+'><span class="k"><span class="kt">'+lab(r.label||r.key)+'</span>'+(r.sub?tg:'')+'</span>'+(r.e?sb(st):'')+'<span class="v '+(v<0?'neg':'')+'">'+(v===0&&!r.b?'<span class="mut">—</span>':fmtY(v))+'</span></div>';
       }
@@ -1715,7 +1719,7 @@ function buildFinance(m,md,has){
       return main;
     }
     var rows=defs.map(oneRow).join('');
-    html+=(hasAdjust?'<div class="info">手入力の値を反映した試算です。CSVを取り込み直しても「確定」にした値はそのまま優先されます。</div>':'')
+    html+=(hasAdjust?'<div class="info">手で入れた数字（仮・確定）をCSVより優先して表示しています。「仮」は未確定の見込みで、報告書にもそう注記されます。CSVの値に戻すには「数字を直す」で欄を空にして保存。</div>':'')
       +'<div class="card"><div class="ch">損益計算書<span class="r">'+(editPl
         ?'<button class="btn sm" data-act="pl-cancel">キャンセル</button><button class="btn sm pri" data-act="pl-save">保存</button>'
         :(hasAdjust?tag('手入力あり','amb')+' ':'')+'<button class="btn sm" data-act="pl-edit">数字を直す</button>')+'</span></div>'

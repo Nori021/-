@@ -374,7 +374,7 @@ input[type=number]{text-align:right;font-variant-numeric:tabular-nums}
 <aside class="drawer" id="drawer"></aside>
 <div id="tour"></div>
 <script>
-var APP_VERSION='v30';
+var APP_VERSION='v31';
 // ===== 以下は v24 から引き継いだ計算・取込ロジック（画面は含まない） =====
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
@@ -1719,7 +1719,8 @@ function buildFinance(m,md,has){
       return main;
     }
     var rows=defs.map(oneRow).join('');
-    html+=(hasAdjust?'<div class="info">手で入れた数字（仮・確定）をCSVより優先して表示しています。「仮」は未確定の見込みで、報告書にもそう注記されます。CSVの値に戻すには「数字を直す」で欄を空にして保存。</div>':'')
+    var manualRows=[];['売上高合計','売上高','売上原価合計'].concat(sgKeys).forEach(function(k){var pt=getPt(k);if(pt!=null&&pt.v!=null){var rw=getRaw(k);if(rw!==pt.v)manualRows.push((k==='売上高合計'?'売上高':k)+' '+fmtY(pt.v)+'（'+(pt.confirmed?'確定':'仮')+'／CSVは '+(rw?fmtY(rw):'—')+'）');}});
+    html+=(manualRows.length?'<div class="info"><b>手で入れた数字がCSVより優先されています：</b>'+esc(manualRows.join('、'))+'<div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="note">「仮」は未確定の見込みで、報告書にもそう注記されます。</span><button class="btn sm" data-act="pl-clear">この月の手入力をすべて消してCSVに戻す</button></div></div>':'')
       +'<div class="card"><div class="ch">損益計算書<span class="r">'+(editPl
         ?'<button class="btn sm" data-act="pl-cancel">キャンセル</button><button class="btn sm pri" data-act="pl-save">保存</button>'
         :(hasAdjust?tag('手入力あり','amb')+' ':'')+'<button class="btn sm" data-act="pl-edit">数字を直す</button>')+'</span></div>'
@@ -2015,6 +2016,7 @@ function bindEvents(){
       if(act==='pl-edit'){S.finEditPl=S.selMonth;S.jump='finance';render();return;}
       if(act==='pl-cancel'){S.finEditPl=null;S.jump='finance';render();return;}
       if(act==='pl-save'){savePlTemp();return;}
+      if(act==='pl-clear'){if(!confirm(S.selMonth+'の手入力（仮・確定）をすべて消して、CSVの値に戻します。よろしいですか？'))return;var nc=Object.assign({},S.finNotes[S.selMonth]||{});nc.pl_temp={};S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=nc;gasPost({action:'save_finance_notes',data:allFinNotes()});S.jump='finance';render();return;}
       if(act==='bal-save'){var inp2=document.getElementById('bal-input');var note=Object.assign({},S.finNotes[S.selMonth]||{});if(inp2){var v=inp2.value.trim();note.balance=v!==''?parseFloat(v):null;}
         S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=note;gasPost({action:'save_finance_notes',data:allFinNotes()});S.jump='finance';render();return;}
       if(act==='exp-add'){var n2=Object.assign({},S.finNotes[S.selMonth]||{});n2.expenses=(n2.expenses||[]).concat([{label:'',amount:'',date:'',type:'plan'}]);S.finNotes=Object.assign({},S.finNotes);S.finNotes[S.selMonth]=n2;S.jump='finance';render();

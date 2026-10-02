@@ -374,7 +374,7 @@ input[type=number]{text-align:right;font-variant-numeric:tabular-nums}
 <aside class="drawer" id="drawer"></aside>
 <div id="tour"></div>
 <script>
-var APP_VERSION='v28';
+var APP_VERSION='v29';
 // ===== 以下は v24 から引き継いだ計算・取込ロジック（画面は含まない） =====
 var FM=['5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月','4月'];
 // ── 年度（5月始まり） ────────────────────────────────────────
@@ -925,109 +925,137 @@ async function handleRepFile(file){
 async function submitForm(){
   // フォームから全項目を収集
   var ans={};
-  document.querySelectorAll('.rep-form-input').forEach(function(el){
-    ans[el.dataset.key]=el.value.trim();
-  });
+  document.querySelectorAll('.rep-form-input').forEach(function(el){ans[el.dataset.key]=el.value.trim();});
   S.iAns=ans;
   S.formAnswers=Object.assign({},S.formAnswers);S.formAnswers[S.selMonth]=ans;
   await gasPost({action:'save_ians',month:gkey(S.fy,S.selMonth),data:ans});
   S.genLoading=true;S.genResult='';render();
-
-  var m=S.selMonth,kpi=S.kpiData[m]||{},a=ans;
-  var nl='\n';
-  // 財務タブと同じロジックで実効値を計算
-  var _note=S.finNotes[m]||{};
-  var _pt=_note.pl_temp||{};
-  function _getRaw(key){var d=S.raw[key];if(!d)return 0;var v=d[m];return(v!=null&&v!=='')?(+v)||0:0;}
-  function _getPt(key){var e=_pt[key];if(e==null)return null;if(typeof e==='object')return e;return{v:e,confirmed:false};}
-  function _effVal(key){var pt=_getPt(key);if(pt!=null&&pt.v!=null){if(pt.confirmed)return pt.v;var rw=_getRaw(key);return rw!==0?rw:pt.v;}return _getRaw(key);}
-  var _ed=getEffData(m);
-  var _effRev=_ed.rev,_effGross=_ed.gross,_effSg=_ed.sg,_effOp=_ed.op,_effEco=_ed.eco,_effNet=_ed.net;
-
-  // AQXIA Sports Club KPI（ジム系カテゴリ）を自動でまとめる
-  var _gymCats={'売上':1,'会員':1,'稼働':1};
-  var _aqxiaLines=KPI_FIELDS.filter(function(f){return _gymCats[f[3]]&&kpi[f[0]]!=null&&kpi[f[0]]!=='';}).map(function(f){return f[1]+': '+fmtKpi(kpi[f[0]],f[2]);}).join(' / ');
-  // コインランドリー実績を自動でまとめる
-  var _lndDefs=[['laundry_sales','売上合計','man'],['laundry_dryer_m','乾燥機M売上','man'],['laundry_dryer_l','乾燥機L売上','man'],['laundry_washer','洗濯乾燥機XL売上','man'],['laundry_washer_v','洗濯機売上','man'],['laundry_changer','両替機(抜取)','man'],['laundry_util','全体稼働率','pct'],['laundry_util_m','稼働率M','pct'],['laundry_util_l','稼働率L','pct'],['laundry_util_xl','稼働率XL','pct'],['laundry_util_v','稼働率(洗濯機)','pct'],['laundry_gas','ガス代','yen'],['laundry_electric','電気代','yen'],['laundry_water','水道代','yen'],['laundry_labor','人件費','yen'],['laundry_op','営業利益','man']];
-  var _lndLines=_lndDefs.filter(function(f){return kpi[f[0]]!=null&&kpi[f[0]]!=='';}).map(function(f){return f[1]+': '+fmtKpi(kpi[f[0]],f[2]);}).join(' / ');
-  // 部門別（その月の損益）を自動でまとめる
-  var _bizDept=(S.finNotes[m]||{}).bizDept;
-  var _bizCostItems=["役員報酬","給料賃金","法定福利費","福利厚生費","研修採用費","業務委託料","水道光熱費","広告宣伝費","通信費","地代家賃","賃借料","リース代","支払手数料","修繕費","保険料","租税公課","支払報酬","接待交際費","旅費交通費","荷造運賃","備品・消耗品費","会議費","新聞図書費","諸会費","車両費","雑費"];
-  var _bizLines='';
-  if(_bizDept){
-    _bizLines=[['gym','スポーツクラブ'],['laundry','コインランドリー'],['stay','宿泊施設'],['common','共通費']].map(function(p){
-      var d=_bizDept[p[0]]||{};
-      var sales=d['売上高']||0;
-      var cost=d['販売費及び一般管理費合計']||_bizCostItems.reduce(function(s,k){return s+(d[k]||0);},0);
-      var profit=d['営業利益']||(sales-cost);
-      if(!sales&&!cost&&!profit)return null;
-      return '  '+p[1]+': 売上'+fmtY(sales)+' / 出費'+fmtY(cost)+' / 営業利益'+fmtY(profit);
-    }).filter(Boolean).join(nl);
-  }
-
-  var prompt='あなたは経営コンサルタントです。以下のデータをもとに、スタッフ全員が読みやすい月次経営報告書を日本語マークダウンで作成してください。'+nl+nl
-    +'対象月: '+m+(hasTempMonth(m)?'（※仮の数字を含む・対外資料に使わない）':'')+nl
-    +'売上高: '+fmtY(_effRev)+nl
-    +'売上総利益: '+fmtY(_effGross)+nl
-    +'販管費: '+fmtY(_effSg)+nl
-    +'営業利益: '+fmtY(_effOp)+nl
-    +'経常利益: '+fmtY(_effEco)+nl
-    +'純利益: '+fmtY(_effNet)+nl
-    +'■ AQXIA Sports Club KPI（経営者は直接管理しておらず、以下のKPI数値のみが根拠です）:'+nl
-    +'  '+(_aqxiaLines||'KPIデータなし')+nl
-    +'■ コインランドリー実績:'+nl
-    +'  '+(_lndLines||'データなし')+nl
-    +(_bizLines?'■ 部門別収支（'+m+'）:'+nl+_bizLines+nl:'')
-    +'ハイライト: '+(kpi.highlights||'なし')+nl
-    +'ローライト: '+(kpi.lowlights||'なし')+nl
-    +'各事業の進捗（プール工事・ランドリーのシステム導入・宿泊施設の工事 など）: '+(a.biz||'なし')+nl
-    +'課題・リスク: '+(a.issues||'なし')+nl
-    +'来月の大型支出: '+(a.finance2||'なし')+nl
-    +'経営者コメント: '+(a.ceo||'なし')+nl
-    +(a.free_note?'追加指示・備考: '+a.free_note+nl:'')+nl
-    +'【出力ルール】'+nl
-    +'- 各セクションは「# ① タイトル」形式で始める'+nl
-    +'- 重要な数字・キーワードは **太字** にする'+nl
-    +'- 箇条書きは「- 」を使う'+nl
-    +'- アクションプランは「1. 」番号付きリストにする'+nl
-    +'- 経営者コメントセクションは「> 」引用形式で書く'+nl
-    +'- AQXIA Sports Clubのセクションは、上記KPI数値だけを根拠に客観的に記述すること。経営者の入力が無いため、施策やキャンペーン名を推測で断定しないこと。会員数・入退会・退会率・ARPU等の数値から状況を読み取って書く'+nl
-    +'- キャンペーンや施策は経営者から提供されていないので、勝手にキャンペーン名を作らないこと。施策にふれる場合はKPIの数値変化から推測される範囲にとどめる'+nl
-    +'- コインランドリーのセクションは、機種別の売上・稼働率と人件費・営業利益にふれること'+nl
-    +'- 各事業の進捗セクションは、入力された進捗（プール工事・ランドリーのシステム導入・宿泊施設の工事など）を整理して記述すること。新規事業の話にはしないこと'+nl
-    +'- 部門別収支が提供されている場合は、②売上・財務状況の中で各部門（スポーツクラブ・コインランドリー・宿泊・共通費）の出費と収支に簡潔に触れること'+nl
-    +'- 全体で1500〜2200文字程度'+nl+nl
-    +'【構成】この順で作成:'+nl
-    +'# ① 今月のサマリー'+nl
-    +'# ② 売上・財務状況'+nl
-    +'# ③ AQXIA Sports Club（KPIから読み取り）'+nl
-    +'# ④ コインランドリー（売上・稼働率）'+nl
-    +'# ⑤ 各事業の進捗（プール工事・ランドリーのシステム導入・宿泊施設の工事 など）'+nl
-    +'# ⑥ 課題とリスク'+nl
-    +'# ⑦ 来月のアクションプラン'+nl
-    +'# ⑧ 経営者コメント';
-
+  var built=buildReportPrompt(S.selMonth,ans);
   try{
-    // GAS経由でのみ生成（ブラウザからの直接API呼び出しはCORSで不可）
-    if(!S.gasConnected||!S.gasUrl||!S.auth){
-      throw new Error('Google Sheets（GAS）に接続してください。\n⚙️ DB設定 → Google Sheets同期 でURLと管理者キーを設定して「接続 & テスト」を押してください。');
-    }
-    var res=await fetch(S.gasUrl,{method:'POST',body:JSON.stringify(withAuth({action:'generate_report',prompt:prompt}))});
-    var rawText=await res.text();
-    var j;
+    if(!S.gasConnected||!S.gasUrl||!S.auth)throw new Error('ログインしてから作成してください');
+    var res=await fetch(S.gasUrl,{method:'POST',body:JSON.stringify(withAuth({action:'generate_report',system:built.system,prompt:built.prompt}))});
+    var rawText=await res.text();var j;
     try{j=JSON.parse(rawText);}catch(pe){throw new Error('GAS応答の解析失敗: '+rawText.substring(0,200));}
-    if(j&&j.ok&&j.text){
-      S.genResult=j.text;
-    }else{
-      throw new Error(j&&j.error?j.error:'GAS応答異常: '+rawText.substring(0,100));
-    }
-  }catch(e){
-    S.genResult='## ⚠️ 生成エラー\n\n'+e.message;
-  }
+    if(j&&j.error==='auth'){authFailed();return;}
+    if(j&&j.ok&&j.text){S.genResult=j.text;}
+    else{throw new Error(j&&j.error?j.error:'GAS応答異常: '+rawText.substring(0,100));}
+  }catch(e){S.genResult='## ⚠️ 生成エラー\n\n'+e.message;}
   S.genLoading=false;render();
 }
 
+// ── 報告書のためにAIへ渡す材料（2026-10-02 作り直し）───────────────────────
+// 今月だけでなく、前月・前々月・年度累計・残高・今後の支出・先月のアクションプランまで渡す。
+// 岡村さんの入力は「素材」で、転記ではなく分析の材料として使わせる。追加指示は最後に最優先で置く。
+function buildReportPrompt(m,a){
+  var nl='\n',kpi=S.kpiData[m]||{};
+  var ai=FM.indexOf(m);
+  function monthsBefore(n){var out=[];for(var i=ai-1;i>=0&&out.length<n;i--){var d=getEffData(FM[i]);if(d.rev>0||d.sg>0)out.push(FM[i]);}return out;}
+  var prevs=monthsBefore(2),pm=prevs[0]||null,ppm=prevs[1]||null;
+  var cur=getEffData(m),pd=pm?getEffData(pm):null,ppd=ppm?getEffData(ppm):null;
+  var active=FM.slice(0,ai+1).map(getEffData).filter(function(d){return d.rev>0||d.sg>0;});
+  var ytd={rev:0,sg:0,op:0,net:0};active.forEach(function(d){ytd.rev+=d.rev;ytd.sg+=d.sg;ytd.op+=d.op;ytd.net+=d.net;});
+  function pl(d){return d?'売上高 '+fmtY(d.rev)+'／販管費 '+fmtY(d.sg)+'／営業利益 '+fmtY(d.op)+'／経常利益 '+fmtY(d.eco)+'／純利益 '+fmtY(d.net):'（データなし）';}
+  function diffY(c,p){if(c==null||p==null)return'';var d=c-p;return'（前月比 '+(d>=0?'+':'▲')+Math.abs(Math.round(d)).toLocaleString()+'円'+(p?'、'+(d>=0?'+':'')+Math.round(d/Math.abs(p)*1000)/10+'%':'')+'）';}
+  // 販管費の内訳（今月と前月）
+  var sgKeys=['役員報酬','給料賃金','法定福利費','業務委託料','地代家賃','水道光熱費','備品・消耗品費','広告宣伝費','通信費','支払手数料','支払報酬','修繕費'];
+  function raw(k,mm){var d=S.raw[k];if(!d)return 0;var v=d[mm];return(v!=null&&v!=='')?(+v)||0:0;}
+  var sgLines=sgKeys.map(function(k){var c=raw(k,m);if(!c&&!(pm&&raw(k,pm)))return null;return'  '+k+': '+fmtY(c)+(pm?diffY(c,raw(k,pm)):'');}).filter(Boolean).join(nl);
+  // KPI（今月・前月）
+  var pk=pm?(S.kpiData[pm]||{}):{};
+  var gymCats={'売上':1,'会員':1,'稼働':1};
+  var kpiLines=KPI_FIELDS.filter(function(f){return gymCats[f[3]]&&kpi[f[0]]!=null&&kpi[f[0]]!=='';}).map(function(f){var k=f[0],u=f[2];var line='  '+f[1]+': '+fmtKpi(kpi[k],u);
+    if(u!=='str'&&pk[k]!=null&&pk[k]!==''&&!isNaN(kpi[k])&&!isNaN(pk[k])){var d=kpi[k]-pk[k];line+='（前月 '+fmtKpi(pk[k],u)+'、'+(d>=0?'+':'▲')+(u==='pct'?Math.round(Math.abs(d)*10)/10+'pt':fmtKpi(Math.abs(d),u))+'）';}
+    return line;}).join(nl);
+  var lndDefs=[['laundry_sales','売上合計','man'],['laundry_dryer_m','乾燥機M売上','man'],['laundry_dryer_l','乾燥機L売上','man'],['laundry_washer','洗濯乾燥機XL売上','man'],['laundry_washer_v','洗濯機売上','man'],['laundry_changer','両替機(抜取・売上に含めない)','man'],['laundry_util','全体稼働率','pct'],['laundry_util_m','稼働率M','pct'],['laundry_util_l','稼働率L','pct'],['laundry_util_xl','稼働率XL','pct'],['laundry_util_v','稼働率(洗濯機)','pct'],['laundry_expense','経費合計','man'],['laundry_gas','ガス代','man'],['laundry_electric','電気代','man'],['laundry_water','水道代','man'],['laundry_labor','人件費','man'],['laundry_op','営業利益','man']];
+  var lndLines=lndDefs.filter(function(f){return kpi[f[0]]!=null&&kpi[f[0]]!=='';}).map(function(f){var k=f[0],u=f[2];var line='  '+f[1]+': '+fmtKpi(kpi[k],u);
+    if(pk[k]!=null&&pk[k]!==''){var d=kpi[k]-pk[k];line+='（前月 '+fmtKpi(pk[k],u)+'、'+(d>=0?'+':'▲')+(u==='pct'?Math.round(Math.abs(d)*10)/10+'pt':fmtKpi(Math.abs(d),u))+'）';}
+    return line;}).join(nl);
+  // 部門別
+  var bizDept=(S.finNotes[m]||{}).bizDept,bizLines='';
+  if(bizDept){bizLines=[['gym','スポーツクラブ'],['laundry','コインランドリー'],['stay','宿泊施設'],['common','共通費']].map(function(p){var d=bizDept[p[0]]||{};var sales=d['売上高']||0,cost=d['販売費及び一般管理費合計']||0,profit=d['営業利益']||(sales-cost);if(!sales&&!cost)return null;return'  '+p[1]+': 売上'+fmtY(sales)+'／出費'+fmtY(cost)+'／営業利益'+fmtY(profit);}).filter(Boolean).join(nl);}
+  // 残高・大型支出
+  var balMs=FM.slice(0,ai+1).filter(function(mm){return S.finNotes[mm]&&S.finNotes[mm].balance!=null;});
+  var balM=balMs.length?balMs[balMs.length-1]:null,bal=balM?S.finNotes[balM].balance:null;
+  var avgSg=active.length?ytd.sg/active.length:0;
+  var expThis=((S.finNotes[m]||{}).expenses||[]).filter(function(e){return e.label;});
+  var expNext=[];FM.slice(ai+1).forEach(function(mm){((S.finNotes[mm]||{}).expenses||[]).filter(function(e){return e.label;}).forEach(function(e){expNext.push(mm+' '+(e.type==='plan'?'予定':'実績')+' '+e.label+' '+(e.amount?fmtM(e.amount*10000):''));});});
+  var expLines=expThis.map(function(e){return'  '+(e.type==='plan'?'予定':'実績')+' '+e.label+' '+(e.amount?fmtM(e.amount*10000):'');}).join(nl);
+  // B/S
+  var bs=S.bsData||{},bsLine='';
+  if(bs['資産の部合計'])bsLine='資産合計 '+fmtY(bs['資産の部合計'])+'／負債合計 '+fmtY(bs['負債の部合計'])+'／純資産 '+fmtY(bs['純資産の部合計'])+(bs['純資産の部合計']<0?'（債務超過）':'')+'／現金預金 '+fmtY(bs['現金及び預金合計'])+'（'+esc(S.bsName||'')+'・期末時点）';
+  // 先月の報告書の「来月のアクションプラン」
+  var prevPlan='';
+  if(pm&&S.reports[pm]&&S.reports[pm].text){var t=S.reports[pm].text;var mm=/#+\s*#*\s*⑦[\s\S]*?(?=\n#+\s*#*\s*⑧|$)/.exec(t);if(mm)prevPlan=mm[0].replace(/^#+\s*#*\s*⑦[^\n]*\n/,'').trim().slice(0,1800);}
+  // 月のシリーズ（短く）
+  var series=active.map(function(d){return d.month+': 売上'+fmtM(d.rev)+'／販管費'+fmtM(d.sg)+'／純利益'+fmtM(d.net);}).join('、');
 
+  var system=[
+    'あなたは株式会社タカバシラ（沖縄・宮古島。スポーツクラブ AQXIA／AIR、コインランドリー283、宿泊事業 The Perch／The Pillar を運営）の経営参謀です。',
+    '毎月、社長の岡村さんに代わって「月次経営報告書」を書きます。読み手はスタッフ全員と株主です。経理の専門家ではない人が読んで、何が起きていて次に何をするかが分かる文章にしてください。',
+    '',
+    '【絶対に守ること】',
+    '1. 数字は、与えられたものだけを使う。推測で数字・固有名詞・施策名・人名を作らない。無いものは「データなし」と書く。',
+    '2. 社長の入力（進捗・課題・来月の支出・コメント）は「素材」です。そのまま転記しない。要約し、言い換え、数字や前月の状況と結びつけて、読み手にとっての意味（だから何か）を書き足す。',
+    '3. 必ず比べる。今月 対 前月、年度累計、先月のアクションプランの進み具合。数字を出すときは「増えた／減った」と「なぜそう読めるか」を添える。',
+    '4. 各セクションは「事実（数字）→ 読み取り（原因・意味）→ 次の一手」の順で書く。読み取りが無い段落は作らない。',
+    '5. 口調は「共に・前向き・等身大」。煽らない、脅さない、横文字で飾らない。厳しい数字も、何をすれば良くなるかとセットで書く。',
+    '6. 文章量は 2,500〜4,000文字。短い段落と箇条書きで、スマホでも読める形に。',
+    '7. 「先月のアクションプラン」が与えられたら、①のサマリーか⑥の中で、進んだこと・止まっていることを必ず1回は振り返る。',
+    '8. 最後に【最優先の指示】がある場合、構成や口調の指定より優先して従う。',
+    '',
+    '【出力形式（マークダウン）】',
+    '- 見出しは必ず「# ① タイトル」の形式。番号は①〜⑧、この順番で8つ。',
+    '- 重要な数字と結論は **太字**。箇条書きは「- 」、手順や施策は「1. 」の番号付き。',
+    '- 表を使うなら「| 項目 | 今月 | 前月 | 差 |」のようなマークダウンの表。',
+    '- ⑧経営者コメントは「> 」の引用形式で、社長の入力を整えて書く（意味を変えない）。',
+    '',
+    '【構成】',
+    '# ① 今月のサマリー（3〜5行。黒字/赤字、前月との違い、いちばん大事な1点）',
+    '# ② 売上・財務状況（損益の表、前月比、年度累計、販管費の中で動いた科目、残高と資金繰り）',
+    '# ③ AQXIA Sports Club（KPIから読み取り。会員・入退会・単価・稼働の変化と意味）',
+    '# ④ コインランドリー（機種別の売上・稼働率、経費、営業利益の変化と意味）',
+    '# ⑤ 各事業の進捗（社長の入力を整理。数字や支出予定と結びつける）',
+    '# ⑥ 課題とリスク（財務・現場・事業展開に分けて。先月から引き続きのものはそう書く）',
+    '# ⑦ 来月のアクションプラン（番号付き。何を・誰が（入力にある名前だけ）・いつまでに・どの数字が動けば成功か）',
+    '# ⑧ 経営者コメント'
+  ].join(nl);
+
+  var prompt=[
+    '対象月: '+fyLabel(S.fy)+' '+m+(hasTempMonth(m)?'（仮の手入力を含む。対外資料には使わない旨を①で一言）':''),
+    '',
+    '■ 損益（今月）: '+pl(cur),
+    pm?'■ 損益（前月 '+pm+'）: '+pl(pd):'■ 前月のデータなし',
+    ppm?'■ 損益（前々月 '+ppm+'）: '+pl(ppd):'',
+    '■ 今月の前月比: 売上'+(pd?diffY(cur.rev,pd.rev):'—')+'／販管費'+(pd?diffY(cur.sg,pd.sg):'—')+'／営業利益'+(pd?diffY(cur.op,pd.op):'—')+'／純利益'+(pd?diffY(cur.net,pd.net):'—'),
+    '■ 年度累計（'+active[0].month+'〜'+m+'・'+active.length+'か月）: 売上 '+fmtY(ytd.rev)+'／販管費 '+fmtY(ytd.sg)+'／営業利益 '+fmtY(ytd.op)+'／純利益 '+fmtY(ytd.net)+'／月平均販管費 '+fmtY(avgSg),
+    '■ 月ごとの流れ: '+series,
+    '■ 販管費の主な科目（今月、カッコ内は前月比）:',sgLines||'  （内訳なし）',
+    '',
+    '■ 月末残高: '+(bal!=null?fmtY(bal)+'（'+balM+'末時点'+(avgSg?'、販管費の約'+Math.floor(bal/avgSg)+'か月分':'')+'）':'未入力'),
+    '■ 今月の大型支出:',expLines||'  なし',
+    '■ 来月以降の大型支出の予定: '+(expNext.length?expNext.join('、'):'なし'),
+    bsLine?'■ 貸借対照表: '+bsLine:'',
+    '',
+    '■ AQXIA Sports Club KPI（今月、カッコ内は前月との比較。社長は直接運営していないので、この数字だけが根拠）:',kpiLines||'  KPIデータなし',
+    kpi.highlights?'■ 店舗からのハイライト: '+kpi.highlights:'',
+    kpi.lowlights?'■ 店舗からのローライト: '+kpi.lowlights:'',
+    '',
+    '■ コインランドリー実績（今月、カッコ内は前月との比較）:',lndLines||'  データなし',
+    bizLines?'■ 部門別収支（'+m+'・マネーフォワード部門別集計表）:'+nl+bizLines:'',
+    '',
+    prevPlan?'■ 先月（'+pm+'）の報告書に書いた「来月のアクションプラン」（進み具合を振り返る材料）:'+nl+prevPlan:'',
+    '',
+    '■ 社長の入力（素材。転記せず、整理して意味づけする）',
+    '各事業の進捗: '+(a.biz||'なし'),
+    '課題・リスク: '+(a.issues||'なし'),
+    '来月の大型支出・資金調達: '+(a.finance2||'なし'),
+    '経営者コメント（⑧の素材）: '+(a.ceo||'なし'),
+    '',
+    '上のsystemの構成①〜⑧で、月次経営報告書を書いてください。',
+    a.free_note?nl+'【最優先の指示】'+nl+a.free_note+nl+'（この指示は、構成・口調・文章量の指定より優先する）':''
+  ].filter(function(x){return x!==''&&x!=null;}).join(nl);
+  return{system:system,prompt:prompt};
+}
 
 async function gasPost(body){
   if(!S.gasUrl||!S.auth)return;
